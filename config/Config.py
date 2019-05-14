@@ -489,17 +489,17 @@ class Config(object):
 		# And a list of the entities in the new (val or test, or oov or whatever) data (that are not in the old data?)
 		# and create a new matrix that is composed of the training embeddings with random values initialized for the 
 		# new embeddings append to it		
+		# We also need to get the indices for updates
+
 		try:
 			embs = open(embedding_path, 'r')
     	# Store configuration file values
 		except FileNotFoundError:
-			raise Exception('Entity embedding file not found: {}'.format(ent_embedding_path))
+			raise Exception('Entity embedding file not found: {}'.format(embedding_path))
 
 		embedding_dict = json.loads(embs.read())	
 		ent_embedding = embedding_dict["ent_embeddings"]
-		self.ent_embedding_initializer = tf.constant_initializer(ent_embedding)		
-		# self.ent_embedding_initializer = tf.contrib.layers.xavier_initializer(uniform = False) 
-		# We also need to get the indices for updates
+		self.ent_embedding_initializer = tf.constant_initializer(ent_embedding, verify_shape=True)		
 
 	def set_rel_embedding_initializer(self, embedding_path):
 		
@@ -507,10 +507,10 @@ class Config(object):
 			embs = open(embedding_path, 'r')
     	# Store configuration file values
 		except FileNotFoundError:
-			raise Exception('Relation embedding file not found: {}'.format(ent_embedding_path))
+			raise Exception('Relation embedding file not found: {}'.format(embedding_path))
 
 		embedding_dict = json.loads(embs.read())	
 		rel_embedding = embedding_dict["rel_embeddings"]
-		self.rel_embedding_initializer = tf.constant_initializer(rel_embedding)
+		self.rel_embedding_initializer = tf.constant_initializer(rel_embedding, verify_shape=True)		
 	
 
