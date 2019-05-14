@@ -125,6 +125,7 @@ class Config(object):
 			if self.freeze_train_embeddings:
 				self.ent_embedding_initializer = self.set_ent_embedding_initializer(self.embedding_initializer_path)
 				self.rel_embedding_initializer = self.set_rel_embedding_initializer(self.embedding_initializer_path)
+
 		if self.test_link_prediction:
 			self.init_link_prediction()
 		if self.test_triple_classification:
@@ -508,10 +509,21 @@ class Config(object):
 		# Compare to length of the training embedding to the total number of entities to see how many 
 		# new rows we need to append to the embdding initializer
 		if self.entTotal > len(ent_embedding):
-			print("ITS TOO DAMN HIGH!")
-
-		print("Entotoal: {} ".format(self.entTotal))
-		print(len(ent_embedding))
+			print("Too many entities!")
+			print("Total Entities in data: {} ".format(self.entTotal))
+			print("Total Entities in Embedding file: {}".format(len(ent_embedding)))
+			required_new_vectors = self.entTotal - len(ent_embedding)
+			# new_ent_embedding = tf.Variable(name="new_ent_embedding",\
+			# 			  shape = [self.entTotal - len(ent_embedding), self.hidden_size],\
+			# 			  initializer = tf.contrib.layers.xavier_initializer(uniform = False))
+			# print(new_ent_embedding.initialized_value())
+			#
+			ent_bound = np.sqrt(6 / (self.entTotal + self.hidden_size)) # Xavier init:  sqrt(6 / (fan_in + fan_out))
+			new_ent_embedding = [np.random.uniform(-ent_bound,ent_bound,self.hidden_size).tolist()\
+			 for x in range(self.entTotal - len(ent_embedding))]
+			
+			ent_embedding = ent_embedding + new_ent_embedding
+			self.ent_update_slices = [len(ent_embedding) - idx for idx in range(required_new_vectors)]
 
 		return tf.constant_initializer(ent_embedding, verify_shape=True)		
 
@@ -525,6 +537,26 @@ class Config(object):
 
 		embedding_dict = json.loads(embs.read())	
 		rel_embedding = embedding_dict["rel_embeddings"]
+
+		if self.relTotal > len(rel_embedding):
+			# In this case we need to create randomly initialized embeddings for the
+			# new relationships
+			print("Too many relationships!")
+			print("Total Relationships in data: {} ".format(self.relTotal))
+			print("Total Relationships in Embedding file: {}".format(len(rel_embedding)))
+			required_new_vectors = self.relTotal - len(rel_embedding)
+			# TODO: Find a good way to initialize the vectors
+			# new_rel_embedding = tf.Variable(name="new_rel_embedding",\
+			# 			  shape = [self.relTotal - len(rel_embedding), self.hidden_size],\
+			# 			  initializer = tf.contrib.layers.xavier_initializer(uniform = False))
+			# print(new_rel_embedding.initialized_value())
+			rel_bound = np.sqrt(6 / (self.relTotal + self.hidden_size)) # Xavier init:  sqrt(6 / (fan_in + fan_out))
+			new_rel_embedding = [np.random.uniform(-rel_bound, rel_bound, self.hidden_size).tolist()\
+			 for x in range(required_new_vectors)]
+			
+			rel_embedding = rel_embedding + new_rel_embedding	
+			self.rel_update_slices = [len(rel_embedding) - idx for idx in range(required_new_vectors)]
+
 		return tf.constant_initializer(rel_embedding, verify_shape=True)		
 	
 
