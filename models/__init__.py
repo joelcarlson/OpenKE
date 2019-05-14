@@ -1,5 +1,6 @@
 from .Model import Model
 from .TransE import TransE
+from .TransE_freeze import TransE_freeze
 from .TransH import TransH
 from .TransD import TransD
 from .TransD import TransD

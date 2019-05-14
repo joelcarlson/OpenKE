@@ -47,6 +47,9 @@ class Config(object):
 		self.test_link_prediction = False
 		self.test_triple_classification = False
 		self.early_stopping = None # It expects a tuple of the following: (patience, min_delta)
+		self.freeze_train_embeddings = False
+		self.ent_embedding_initializer = ""
+		self.rel_embedding_initializer = ""
 
 	def init_link_prediction(self):
 		r'''
@@ -124,6 +127,10 @@ class Config(object):
 			self.init_link_prediction()
 		if self.test_triple_classification:
 			self.init_triple_classification()
+
+	def set_freeze_train_embeddings(self, freeze_train_embeddings):
+		self.freeze_train_embeddings = freeze_train_embeddings
+
 
 	def get_ent_total(self):
 		return self.entTotal
@@ -293,7 +300,11 @@ class Config(object):
 					else:
 						self.optimizer = tf.train.GradientDescentOptimizer(self.alpha)
 					grads_and_vars = self.optimizer.compute_gradients(self.trainModel.loss)
-					self.train_op = self.optimizer.apply_gradients(grads_and_vars)
+					if self.freeze_train_embeddings:
+						# See: https://stackoverflow.com/questions/35803425/update-only-part-of-the-word-embedding-matrix-in-tensorflow
+						self.train_op = self.optimizer.apply_gradients(grads_and_vars)
+					else: 						
+						self.train_op = self.optimizer.apply_gradients(grads_and_vars)
 				self.saver = tf.train.Saver()
 				self.sess.run(tf.initialize_all_variables())
 
@@ -470,3 +481,13 @@ class Config(object):
 			print("triple (%d,%d,%d) is correct" % (h, t, r))
 		else:
 			print("triple (%d,%d,%d) is wrong" % (h, t, r))
+
+	def set_ent_embedding_initializer(self, ent_embedding_path):
+		self.ent_embedding_initializer = ent_embedding_path 
+		self.ent_embedding_initializer = tf.contrib.layers.xavier_initializer(uniform = False) 
+
+	def set_rel_embedding_initializer(self, rel_embedding_path):
+		self.rel_embedding_initializer = rel_embedding_path
+		self.rel_embedding_initializer = tf.contrib.layers.xavier_initializer(uniform = False) 
+		print(self.rel_embedding_initializer)
+
