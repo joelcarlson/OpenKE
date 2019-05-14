@@ -48,8 +48,8 @@ class Config(object):
 		self.test_triple_classification = False
 		self.early_stopping = None # It expects a tuple of the following: (patience, min_delta)
 		self.freeze_train_embeddings = False
-		self.ent_embedding_initializer = ""
-		self.rel_embedding_initializer = ""
+		self.ent_embedding_initializer = "Path required"
+		self.rel_embedding_initializer = "Path required"
 
 	def init_link_prediction(self):
 		r'''
@@ -302,6 +302,7 @@ class Config(object):
 					grads_and_vars = self.optimizer.compute_gradients(self.trainModel.loss)
 					if self.freeze_train_embeddings:
 						# See: https://stackoverflow.com/questions/35803425/update-only-part-of-the-word-embedding-matrix-in-tensorflow
+						# Goal: Take indices from some internal variable, apply gradient update only to that set of indices
 						self.train_op = self.optimizer.apply_gradients(grads_and_vars)
 					else: 						
 						self.train_op = self.optimizer.apply_gradients(grads_and_vars)
@@ -482,12 +483,34 @@ class Config(object):
 		else:
 			print("triple (%d,%d,%d) is wrong" % (h, t, r))
 
-	def set_ent_embedding_initializer(self, ent_embedding_path):
-		self.ent_embedding_initializer = ent_embedding_path 
-		self.ent_embedding_initializer = tf.contrib.layers.xavier_initializer(uniform = False) 
 
-	def set_rel_embedding_initializer(self, rel_embedding_path):
-		self.rel_embedding_initializer = rel_embedding_path
-		self.rel_embedding_initializer = tf.contrib.layers.xavier_initializer(uniform = False) 
-		print(self.rel_embedding_initializer)
+	def set_ent_embedding_initializer(self, embedding_path):
+		# This function needs to take a path for the embedding file produced by the initial training
+		# And a list of the entities in the new (val or test, or oov or whatever) data (that are not in the old data?)
+		# and create a new matrix that is composed of the training embeddings with random values initialized for the 
+		# new embeddings append to it		
+		try:
+			embs = open(embedding_path, 'r')
+    	# Store configuration file values
+		except FileNotFoundError:
+			raise Exception('Entity embedding file not found: {}'.format(ent_embedding_path))
+
+		embedding_dict = json.loads(embs.read())	
+		ent_embedding = embedding_dict["ent_embeddings"]
+		self.ent_embedding_initializer = tf.constant_initializer(ent_embedding)		
+		# self.ent_embedding_initializer = tf.contrib.layers.xavier_initializer(uniform = False) 
+		# We also need to get the indices for updates
+
+	def set_rel_embedding_initializer(self, embedding_path):
+		
+		try:
+			embs = open(embedding_path, 'r')
+    	# Store configuration file values
+		except FileNotFoundError:
+			raise Exception('Relation embedding file not found: {}'.format(ent_embedding_path))
+
+		embedding_dict = json.loads(embs.read())	
+		rel_embedding = embedding_dict["rel_embeddings"]
+		self.rel_embedding_initializer = tf.constant_initializer(rel_embedding)
+	
 

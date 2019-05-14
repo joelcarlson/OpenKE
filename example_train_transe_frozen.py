@@ -37,14 +37,14 @@ con.set_ent_neg_rate(1)
 con.set_rel_neg_rate(0)
 con.set_opt_method("SGD")
 con.set_freeze_train_embeddings(True)
-con.set_rel_embedding_initializer("new path")
-con.set_rel_embedding_initializer("new _ path")
+con.set_ent_embedding_initializer("./res/embedding.vec.json")
+con.set_rel_embedding_initializer("./res/embedding.vec.json")
 
 
 #Models will be exported via tf.Saver() automatically.
-con.set_export_files("./res/model.vec.tf", 0)
+con.set_export_files("./res/model_new.vec.tf", 0)
 #Model parameters will be exported to json files automatically.
-con.set_out_files("./res/embedding.vec.json")
+con.set_out_files("./res/embedding_new.vec.json")
 #Initialize experimental settings.
 con.init()
 #Set the knowledge embedding model
