@@ -48,8 +48,7 @@ class Config(object):
 		self.test_triple_classification = False
 		self.early_stopping = None # It expects a tuple of the following: (patience, min_delta)
 		self.freeze_train_embeddings = False
-		self.ent_embedding_initializer = "Path required"
-		self.rel_embedding_initializer = "Path required"
+		self.embedding_initializer_path = None
 
 	def init_link_prediction(self):
 		r'''
@@ -123,6 +122,9 @@ class Config(object):
 			self.batch_t_addr = self.batch_t.__array_interface__['data'][0]
 			self.batch_r_addr = self.batch_r.__array_interface__['data'][0]
 			self.batch_y_addr = self.batch_y.__array_interface__['data'][0]
+			if self.freeze_train_embeddings:
+				self.ent_embedding_initializer = self.set_ent_embedding_initializer(self.embedding_initializer_path)
+				self.rel_embedding_initializer = self.set_rel_embedding_initializer(self.embedding_initializer_path)
 		if self.test_link_prediction:
 			self.init_link_prediction()
 		if self.test_triple_classification:
@@ -130,6 +132,9 @@ class Config(object):
 
 	def set_freeze_train_embeddings(self, freeze_train_embeddings):
 		self.freeze_train_embeddings = freeze_train_embeddings
+
+	def set_embedding_initializer_path(self, embedding_initializer_path):
+		self.embedding_initializer_path = embedding_initializer_path
 
 
 	def get_ent_total(self):
@@ -499,7 +504,16 @@ class Config(object):
 
 		embedding_dict = json.loads(embs.read())	
 		ent_embedding = embedding_dict["ent_embeddings"]
-		self.ent_embedding_initializer = tf.constant_initializer(ent_embedding, verify_shape=True)		
+
+		# Compare to length of the training embedding to the total number of entities to see how many 
+		# new rows we need to append to the embdding initializer
+		if self.entTotal > len(ent_embedding):
+			print("ITS TOO DAMN HIGH!")
+
+		print("Entotoal: {} ".format(self.entTotal))
+		print(len(ent_embedding))
+
+		return tf.constant_initializer(ent_embedding, verify_shape=True)		
 
 	def set_rel_embedding_initializer(self, embedding_path):
 		
@@ -511,6 +525,6 @@ class Config(object):
 
 		embedding_dict = json.loads(embs.read())	
 		rel_embedding = embedding_dict["rel_embeddings"]
-		self.rel_embedding_initializer = tf.constant_initializer(rel_embedding, verify_shape=True)		
+		return tf.constant_initializer(rel_embedding, verify_shape=True)		
 	
 
