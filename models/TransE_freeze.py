@@ -81,33 +81,33 @@ class TransE_freeze(Model):
 		self.pos_r = pos_r
 		self.fake_pos_r = fake_pos_r
 
-		print("Pos_h")
-		print(pos_h)		
-		print(p_h)
-		# print(pos_h.eval())
-		# print(p_h.eval())
+		# print("Pos_h")
+		# print(pos_h)		
+		# print(p_h)
+		# # print(pos_h.eval())
+		# # print(p_h.eval())
 
-		print("pos_t")
-		print(pos_h)		
-		print(p_t)
-
-
-		print("pos_r")
-		print(pos_r)		
-		print(p_r)
-
-		print("neg_h")
-		print(neg_h)		
-		print(n_h)
-
-		print("neg_t")
-		print(neg_h)		
-		print(n_t)
+		# print("pos_t")
+		# print(pos_h)		
+		# print(p_t)
 
 
-		print("neg_r")
-		print(neg_r)		
-		print(n_r)		
+		# print("pos_r")
+		# print(pos_r)		
+		# print(p_r)
+
+		# print("neg_h")
+		# print(neg_h)		
+		# print(n_h)
+
+		# print("neg_t")
+		# print(neg_h)		
+		# print(n_t)
+
+
+		# print("neg_r")
+		# print(neg_r)		
+		# print(n_r)		
 
 		#Calculating score functions for all positive triples and negative triples
 		#The shape of _p_score is (batch_size, 1, hidden_size)

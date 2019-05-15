@@ -336,15 +336,15 @@ class Config(object):
 						# rel_grads = grads_and_vars[1][0]
 						# print(rel_grads)
 
-						# self.ent_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[0]) # Ent embeddings						
-						# self.rel_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[1]) # Rel embeddings	
+						self.ent_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[0]) # Ent embeddings						
+						self.rel_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[1]) # Rel embeddings	
 
 						# print("Streamin model ports")
 						# print(tf.GraphKeys._STREAMING_MODEL_PORTS)
-						# self.rel_grads = self.rel_grads_and_var[0][0]
-						# self.ent_grads = self.ent_grads_and_var[0][0]
-						# print("self.relgrads")
-						# print(self.rel_grads)
+						self.rel_grads = self.rel_grads_and_var[0][0]
+						self.ent_grads = self.ent_grads_and_var[0][0]
+						print("self.relgrads")
+						print(self.rel_grads)
 
 						# n_hidden=100
 						# # indices_to_update = tf.cast(np.array([[False for hidden_layer in range(n_hidden)] for idx in range(1345)] + [[True for hidden_layer in range(n_hidden)] for idx in range(1346-1345)]), dtype=tf.bool)
@@ -384,7 +384,32 @@ class Config(object):
 		}
 
 		if self.freeze_train_embeddings:
-			_, loss, p_h, pos_r = self.sess.run([self.train_op, self.trainModel.loss, self.trainModel.p_h, self.trainModel.pos_r], feed_dict)
+			_, loss, rel_indices, rel_grad_values = self.sess.run([self.train_op, self.trainModel.loss, self.rel_grads.indices, self.rel_grads.values], feed_dict)
+			print("REL IDX")
+			print(rel_indices)
+			mask = rel_indices > 1346
+			print(mask*rel_indices)
+			print("Rel Vals")
+			print(mask.reshape([mask.shape[0],1]) * rel_grad_values)
+
+			fn = "./res/rel_grads.txt"
+			if os.path.exists(fn):
+			    append_write = 'a' # append if already exists
+			else:
+			    append_write = 'w' # make a new file if not
+			with open(fn, append_write) as f:							
+				f.write("\t".join([", ".join([str(value) for value in x]) for x in rel_grad_values]))
+				f.write("\n")	
+
+			fn = "./res/rel_grads_masked.txt"
+			if os.path.exists(fn):
+			    append_write = 'a' # append if already exists
+			else:
+			    append_write = 'w' # make a new file if not
+			with open(fn, append_write) as f:							
+				f.write("\t".join([", ".join([str(value) for value in x]) for x in mask.reshape([mask.shape[0],1])*rel_grad_values]))
+				f.write("\n")							
+
 			# print(len(pos_r))
 			# print(pos_r) # First 100 indices from batch
 
