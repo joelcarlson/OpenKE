@@ -6,6 +6,7 @@ import time
 import datetime
 import ctypes
 import json
+import logging
 
 class Config(object):
 	'''
@@ -14,7 +15,7 @@ class Config(object):
 	def __init__(self):
 		base_file = os.path.abspath(os.path.join(os.path.dirname(__file__), '../release/Base.so'))
 		self.lib = ctypes.cdll.LoadLibrary(base_file)
-		self.lib.sampling.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64]
+		self.lib.sampling.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64]
 		self.lib.getHeadBatch.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
 		self.lib.getTailBatch.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
 		self.lib.testHead.argtypes = [ctypes.c_void_p]
@@ -107,24 +108,32 @@ class Config(object):
 			self.lib.setWorkThreads(self.workThreads)
 			self.lib.randReset()
 			self.lib.importTrainFiles()
+			logging.warning('imported train')	
 			self.relTotal = self.lib.getRelationTotal()
 			self.entTotal = self.lib.getEntityTotal()
 			self.trainTotal = self.lib.getTrainTotal()
-			self.testTotal = self.lib.getTestTotal()
-			self.validTotal = self.lib.getValidTotal()
+			logging.warning('got train total')	
+			# self.testTotal = self.lib.getTestTotal()
+			logging.warning('got test total')
+			# self.validTotal = self.lib.getValidTotal()
+			logging.warning('got val total')
 			self.batch_size = int(self.lib.getTrainTotal() / self.nbatches)
+			logging.warning('set batch size')
 			self.batch_seq_size = self.batch_size * (1 + self.negative_ent + self.negative_rel)
-			self.batch_h = np.zeros(self.batch_size * (1 + self.negative_ent + self.negative_rel), dtype = np.int64)
+			self.batch_h = np.zeros(self.batch_size * (1 + self.negative_ent + self.negative_rel), dtype = np.int64) # 1d list of 0s of shape (1 + self.negative_ent + self.negative_rel,)
 			self.batch_t = np.zeros(self.batch_size * (1 + self.negative_ent + self.negative_rel), dtype = np.int64)
 			self.batch_r = np.zeros(self.batch_size * (1 + self.negative_ent + self.negative_rel), dtype = np.int64)
 			self.batch_y = np.zeros(self.batch_size * (1 + self.negative_ent + self.negative_rel), dtype = np.float32)
+			logging.warning('Assigned batches')
 			self.batch_h_addr = self.batch_h.__array_interface__['data'][0]
 			self.batch_t_addr = self.batch_t.__array_interface__['data'][0]
 			self.batch_r_addr = self.batch_r.__array_interface__['data'][0]
 			self.batch_y_addr = self.batch_y.__array_interface__['data'][0]
+			logging.warning('Assigned np array interfaces')
 			if self.freeze_train_embeddings:
 				self.ent_embedding_initializer = self.set_ent_embedding_initializer(self.embedding_initializer_path)
 				self.rel_embedding_initializer = self.set_rel_embedding_initializer(self.embedding_initializer_path)
+				logging.warning('initialized embeddings')
 
 		if self.test_link_prediction:
 			self.init_link_prediction()
@@ -137,6 +146,10 @@ class Config(object):
 	def set_embedding_initializer_path(self, embedding_initializer_path):
 		self.embedding_initializer_path = embedding_initializer_path
 
+
+
+	# def set_test_in_path(self, path):
+	# 	self.in_path = path
 
 	def get_ent_total(self):
 		return self.entTotal
@@ -218,7 +231,7 @@ class Config(object):
 
 	# call C function for sampling
 	def sampling(self):
-		self.lib.sampling(self.batch_h_addr, self.batch_t_addr, self.batch_r_addr, self.batch_y_addr, self.batch_size, self.negative_ent, self.negative_rel)
+		self.lib.sampling(self.batch_h_addr, self.batch_t_addr, self.batch_r_addr, self.batch_y_addr, self.batch_size, self.negative_ent, self.negative_rel, self.get_minimum_training_index())
 
 	# save model
 	def save_tensorflow(self):
@@ -307,39 +320,40 @@ class Config(object):
 						self.optimizer = tf.train.GradientDescentOptimizer(self.alpha)
 					grads_and_vars = self.optimizer.compute_gradients(self.trainModel.loss)
 					if self.freeze_train_embeddings:
-						print("here are the trainable variables!")
-						print( )
-						# See: https://stackoverflow.com/questions/35803425/update-only-part-of-the-word-embedding-matrix-in-tensorflow
-						# Goal: Take indices from some internal variable, apply gradient update only to that set of indices
-						print("here comes grads")
-						print(grads_and_vars)
-						print("That was grads")
+						# print("here are the trainable variables!")
+						# print( )
+						# # See: https://stackoverflow.com/questions/35803425/update-only-part-of-the-word-embedding-matrix-in-tensorflow
+						# # Goal: Take indices from some internal variable, apply gradient update only to that set of indices
+						# print("here comes grads")
+						# print(grads_and_vars)
+						# print("That was grads")
 
-						print("ent_grads")
-						ent_grads = grads_and_vars[0][0]
-						print(ent_grads)
+						# print("ent_grads")
+						# ent_grads = grads_and_vars[0][0]
+						# print(ent_grads)
 
-						print("rel_grads")
-						rel_grads = grads_and_vars[1][0]
-						print(rel_grads)
+						# print("rel_grads")
+						# rel_grads = grads_and_vars[1][0]
+						# print(rel_grads)
 
-						self.ent_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[0]) # Ent embeddings						
-						self.rel_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[1]) # Rel embeddings	
+						# self.ent_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[0]) # Ent embeddings						
+						# self.rel_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[1]) # Rel embeddings	
 
-						print("Streamin model ports")
-						print(tf.GraphKeys._STREAMING_MODEL_PORTS)
-						self.rel_grads = self.rel_grads_and_var[0][0]
-						print("self.relgrads")
-						print(self.rel_grads)
+						# print("Streamin model ports")
+						# print(tf.GraphKeys._STREAMING_MODEL_PORTS)
+						# self.rel_grads = self.rel_grads_and_var[0][0]
+						# self.ent_grads = self.ent_grads_and_var[0][0]
+						# print("self.relgrads")
+						# print(self.rel_grads)
 
-						n_hidden=100
-						# indices_to_update = tf.cast(np.array([[False for hidden_layer in range(n_hidden)] for idx in range(1345)] + [[True for hidden_layer in range(n_hidden)] for idx in range(1346-1345)]), dtype=tf.bool)
-						# indices_to_update = tf.cast(np.array([False for idx in range(1345)] + [True for idx in range(1346-1345)]), dtype=tf.bool)
-						indices_to_update = tf.cast(np.array([1348]), dtype=tf.int64)
+						# n_hidden=100
+						# # indices_to_update = tf.cast(np.array([[False for hidden_layer in range(n_hidden)] for idx in range(1345)] + [[True for hidden_layer in range(n_hidden)] for idx in range(1346-1345)]), dtype=tf.bool)
+						# # indices_to_update = tf.cast(np.array([False for idx in range(1345)] + [True for idx in range(1346-1345)]), dtype=tf.bool)
+						# indices_to_update = tf.cast(np.array([1348]), dtype=tf.int64)
 
-						# Gather rel gradients and indices
-						self.rel_grads_gathered = tf.gather(self.rel_grads, indices_to_update)
-						print(self.rel_grads_gathered)
+						# # Gather rel gradients and indices
+						# self.rel_grads_gathered = tf.gather(self.rel_grads, indices_to_update)
+						# print(self.rel_grads_gathered)
 
 						# rel_gather_emb = tf.gather(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[1], range(1346))		
 						# rel_gather_emb = self.entry_stop_gradients(self.rel_grads.values, indices_to_update)
@@ -368,40 +382,48 @@ class Config(object):
 			self.trainModel.batch_r: batch_r,
 			self.trainModel.batch_y: batch_y
 		}
-		_, loss, ent_gv, rel_gv = self.sess.run([self.train_op, self.trainModel.loss, self.ent_grads, self.rel_grads], feed_dict)
 
-		# print("REL GV")
-		# print(rel_gv)
+		if self.freeze_train_embeddings:
+			_, loss, p_h, pos_r = self.sess.run([self.train_op, self.trainModel.loss, self.trainModel.p_h, self.trainModel.pos_r], feed_dict)
+			# print(len(pos_r))
+			# print(pos_r) # First 100 indices from batch
+
+			# _, loss, ent_gv, rel_gv = self.sess.run([self.train_op, self.trainModel.loss, self.ent_grads, self.rel_grads], feed_dict)
+			# print("REL GV")
+			# print(rel_gv)
 
 
-		rel_gv_idxSlice = rel_gv[0][0]
-		# print("rel_gv_idxSlice")
-		# print(rel_gv_idxSlice.indices)
+			# rel_gv_idxSlice = rel_gv[0][0]
+			# # print("rel_gv_idxSlice")
+			# # print(rel_gv_idxSlice.indices)
 
-		print("max index: " + str(max(rel_gv_idxSlice.indices)))
-		print("min index: " + str(min(rel_gv_idxSlice.indices)))
-		print("len index: " + str(len(rel_gv_idxSlice.indices)))
-		# fn = "./res/rel_gv_idxSlice_indices.txt"
-		# if os.path.exists(fn):
-		#     append_write = 'a' # append if already exists
-		# else:
-		#     append_write = 'w' # make a new file if not
-		# with open(fn, append_write) as f:
-		# 	f.write("\t".join([str(x) for x in rel_gv_idxSlice.indices[0:100]]))
-		# 	f.write("\n")
+			# print("max index: " + str(max(rel_gv_idxSlice.indices)))
+			# print("min index: " + str(min(rel_gv_idxSlice.indices)))
+			# print("len index: " + str(len(rel_gv_idxSlice.indices)))
+			# fn = "./res/rel_gv_idxSlice_indices.txt"
+			# if os.path.exists(fn):
+			#     append_write = 'a' # append if already exists
+			# else:
+			#     append_write = 'w' # make a new file if not
+			# with open(fn, append_write) as f:
+			# 	f.write("\t".join([str(x) for x in rel_gv_idxSlice.indices[0:100]]))
+			# 	f.write("\n")
 
-		# fn = "./res/rel_gv_idxSlice_values.txt"
-		# if os.path.exists(fn):
-		#     append_write = 'a' # append if already exists
-		# else:
-		#     append_write = 'w' # make a new file if not
-		# with open(fn, append_write) as f:
-		# 	# Each value a matrix??
-		# 	print("value dimensions = " + str(len(rel_gv_idxSlice.values[0])))
-		# 	f.write("\t".join([", ".join([str(value) for value in x]) for x in rel_gv_idxSlice.values[0:100]]))
-		# 	f.write("\n")			
+			# fn = "./res/rel_gv_idxSlice_values.txt"
+			# if os.path.exists(fn):
+			#     append_write = 'a' # append if already exists
+			# else:
+			#     append_write = 'w' # make a new file if not
+			# with open(fn, append_write) as f:
+			# 	# Each value a matrix??
+			# 	print("value dimensions = " + str(len(rel_gv_idxSlice.values[0])))
+			# 	f.write("\t".join([", ".join([str(value) for value in x]) for x in rel_gv_idxSlice.values[0:100]]))
+			# 	f.write("\n")			
 
-		# print(gv[0][0].indices[0:20])
+			# print(gv[0][0].indices[0:20])			
+		else:
+			_, loss = self.sess.run([self.train_op, self.trainModel.loss], feed_dict)
+
 
 		return loss
 
@@ -605,6 +627,7 @@ class Config(object):
 			ent_embedding = ent_embedding + new_ent_embedding
 			self.ent_update_slices = [len(ent_embedding) - idx for idx in range(required_new_vectors)]
 
+
 		return tf.constant_initializer(ent_embedding, verify_shape=True)		
 
 	def set_rel_embedding_initializer(self, embedding_path):
@@ -637,7 +660,14 @@ class Config(object):
 			rel_embedding = rel_embedding + new_rel_embedding	
 			self.rel_update_slices = [len(rel_embedding) - idx for idx in range(required_new_vectors)]
 
-		return tf.constant_initializer(rel_embedding, verify_shape=True)		
+		return tf.constant_initializer(rel_embedding, verify_shape=True)	
+
+	def get_minimum_training_index(self):
+		"""Need to find the difference between the original training file and our current file		
+		"""	
+
+		#TODO Obviously figure out how to make this work, don't be ridiculous
+		return 483144 
 	
 	def zero_non_important_gradients(idx_slice, important_indices=[]):
 		values = idx_slice.values

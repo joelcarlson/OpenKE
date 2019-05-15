@@ -1,0 +1,13 @@
+12
+/m/aa	1
+/m/bb	2
+/m/cc	3
+/m/dd	4
+/m/ee	5
+/m/ff	6
+/m/aaa	7
+/m/bba	8
+/m/cca	9
+/m/dda	10
+/m/eea	11
+/m/ffa	12

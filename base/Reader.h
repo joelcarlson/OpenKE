@@ -94,13 +94,15 @@ void importTrainFiles() {
 	std::sort(trainTail, trainTail + trainTotal, Triple::cmp_tail);
 	std::sort(trainRel, trainRel + trainTotal, Triple::cmp_rel);
 	printf("The total of train triples is %ld.\n", trainTotal);
-
+	printf("The total of train triples is %ld.\n", trainTotal);
 	lefHead = (INT *)calloc(entityTotal, sizeof(INT));
 	rigHead = (INT *)calloc(entityTotal, sizeof(INT));
 	lefTail = (INT *)calloc(entityTotal, sizeof(INT));
 	rigTail = (INT *)calloc(entityTotal, sizeof(INT));
 	lefRel = (INT *)calloc(entityTotal, sizeof(INT));
 	rigRel = (INT *)calloc(entityTotal, sizeof(INT));
+
+
 	memset(rigHead, -1, sizeof(INT) * entityTotal);
 	memset(rigTail, -1, sizeof(INT) * entityTotal);
 	memset(rigRel, -1, sizeof(INT) * entityTotal);
