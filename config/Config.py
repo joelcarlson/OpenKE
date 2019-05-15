@@ -307,9 +307,55 @@ class Config(object):
 						self.optimizer = tf.train.GradientDescentOptimizer(self.alpha)
 					grads_and_vars = self.optimizer.compute_gradients(self.trainModel.loss)
 					if self.freeze_train_embeddings:
+						print("here are the trainable variables!")
+						print( )
 						# See: https://stackoverflow.com/questions/35803425/update-only-part-of-the-word-embedding-matrix-in-tensorflow
 						# Goal: Take indices from some internal variable, apply gradient update only to that set of indices
+						print("here comes grads")
+						print(grads_and_vars)
+						print("That was grads")
+
+						print("ent_grads")
+						ent_grads = grads_and_vars[0][0]
+						print(ent_grads)
+
+						print("rel_grads")
+						rel_grads = grads_and_vars[1][0]
+						print(rel_grads)
+
+						self.ent_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[0]) # Ent embeddings						
+						self.rel_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[1]) # Rel embeddings	
+
+						print("Streamin model ports")
+						print(tf.GraphKeys._STREAMING_MODEL_PORTS)
+						self.rel_grads = self.rel_grads_and_var[0][0]
+						print("self.relgrads")
+						print(self.rel_grads)
+
+						n_hidden=100
+						# indices_to_update = tf.cast(np.array([[False for hidden_layer in range(n_hidden)] for idx in range(1345)] + [[True for hidden_layer in range(n_hidden)] for idx in range(1346-1345)]), dtype=tf.bool)
+						# indices_to_update = tf.cast(np.array([False for idx in range(1345)] + [True for idx in range(1346-1345)]), dtype=tf.bool)
+						indices_to_update = tf.cast(np.array([1348]), dtype=tf.int64)
+
+						# Gather rel gradients and indices
+						self.rel_grads_gathered = tf.gather(self.rel_grads, indices_to_update)
+						print(self.rel_grads_gathered)
+
+						# rel_gather_emb = tf.gather(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[1], range(1346))		
+						# rel_gather_emb = self.entry_stop_gradients(self.rel_grads.values, indices_to_update)
+						# print(rel_gather_emb)			
+						# print(self.grads_and_vars2)
+
+						# print("List comp")
+						# print([((self.zero_non_important_gradients(idx_slice, [1345])), var) for idx_slice, var in grads_and_vars])
+						# print(grads_and_vars2[0][0].indices)
+
+
+						# self.train_op = self.optimizer.apply_gradients(rel_gather_emb)	
+
 						self.train_op = self.optimizer.apply_gradients(grads_and_vars)
+						# self.train_op = self.optimizer.apply_gradients([tf.IndexedSlices(grad.values, grad.indices)])
+
 					else: 						
 						self.train_op = self.optimizer.apply_gradients(grads_and_vars)
 				self.saver = tf.train.Saver()
@@ -322,7 +368,41 @@ class Config(object):
 			self.trainModel.batch_r: batch_r,
 			self.trainModel.batch_y: batch_y
 		}
-		_, loss = self.sess.run([self.train_op, self.trainModel.loss], feed_dict)
+		_, loss, ent_gv, rel_gv = self.sess.run([self.train_op, self.trainModel.loss, self.ent_grads, self.rel_grads], feed_dict)
+
+		# print("REL GV")
+		# print(rel_gv)
+
+
+		rel_gv_idxSlice = rel_gv[0][0]
+		# print("rel_gv_idxSlice")
+		# print(rel_gv_idxSlice.indices)
+
+		print("max index: " + str(max(rel_gv_idxSlice.indices)))
+		print("min index: " + str(min(rel_gv_idxSlice.indices)))
+		print("len index: " + str(len(rel_gv_idxSlice.indices)))
+		# fn = "./res/rel_gv_idxSlice_indices.txt"
+		# if os.path.exists(fn):
+		#     append_write = 'a' # append if already exists
+		# else:
+		#     append_write = 'w' # make a new file if not
+		# with open(fn, append_write) as f:
+		# 	f.write("\t".join([str(x) for x in rel_gv_idxSlice.indices[0:100]]))
+		# 	f.write("\n")
+
+		# fn = "./res/rel_gv_idxSlice_values.txt"
+		# if os.path.exists(fn):
+		#     append_write = 'a' # append if already exists
+		# else:
+		#     append_write = 'w' # make a new file if not
+		# with open(fn, append_write) as f:
+		# 	# Each value a matrix??
+		# 	print("value dimensions = " + str(len(rel_gv_idxSlice.values[0])))
+		# 	f.write("\t".join([", ".join([str(value) for value in x]) for x in rel_gv_idxSlice.values[0:100]]))
+		# 	f.write("\n")			
+
+		# print(gv[0][0].indices[0:20])
+
 		return loss
 
 	def test_step(self, test_h, test_t, test_r):
@@ -559,4 +639,20 @@ class Config(object):
 
 		return tf.constant_initializer(rel_embedding, verify_shape=True)		
 	
+	def zero_non_important_gradients(idx_slice, important_indices=[]):
+		values = idx_slice.values
+		indices = idx_slice.indices
+
+		for idx in enumerate(values):
+			if indices[idx] not in important_indices:
+				values[idx] = 0
+		return tf.IndexedSlices(values=values, indices=indices, dense_shape=idx_slice.dense_shape)
+
+	def entry_stop_gradients(self, target, mask):
+	    mask_h = tf.logical_not(mask)
+	    
+	    mask = tf.cast(mask, dtype=target.dtype)
+	    mask_h = tf.cast(mask_h, dtype=target.dtype)
+	    
+	    return tf.stop_gradient(mask_h * target) + mask * target		
 
