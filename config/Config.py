@@ -15,7 +15,7 @@ class Config(object):
 	def __init__(self):
 		base_file = os.path.abspath(os.path.join(os.path.dirname(__file__), '../release/Base.so'))
 		self.lib = ctypes.cdll.LoadLibrary(base_file)
-		self.lib.sampling.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64]
+		self.lib.sampling.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64]
 		self.lib.getHeadBatch.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
 		self.lib.getTailBatch.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
 		self.lib.testHead.argtypes = [ctypes.c_void_p]
@@ -108,32 +108,30 @@ class Config(object):
 			self.lib.setWorkThreads(self.workThreads)
 			self.lib.randReset()
 			self.lib.importTrainFiles()
-			logging.warning('imported train')	
+			logging.warning('Imported train')	
 			self.relTotal = self.lib.getRelationTotal()
 			self.entTotal = self.lib.getEntityTotal()
 			self.trainTotal = self.lib.getTrainTotal()
-			logging.warning('got train total')	
-			# self.testTotal = self.lib.getTestTotal()
-			logging.warning('got test total')
-			# self.validTotal = self.lib.getValidTotal()
-			logging.warning('got val total')
+			logging.warning('Got train total: {}'.format(self.trainTotal))	
+			self.testTotal = self.lib.getTestTotal()
+			logging.warning('Got test total: {}'.format(self.testTotal))	
+			self.validTotal = self.lib.getValidTotal()
+			logging.warning('Got val total: {}'.format(self.validTotal))	
 			self.batch_size = int(self.lib.getTrainTotal() / self.nbatches)
-			logging.warning('set batch size')
+			logging.warning('Set batch size: {}'.format(self.batch_size))
 			self.batch_seq_size = self.batch_size * (1 + self.negative_ent + self.negative_rel)
 			self.batch_h = np.zeros(self.batch_size * (1 + self.negative_ent + self.negative_rel), dtype = np.int64) # 1d list of 0s of shape (1 + self.negative_ent + self.negative_rel,)
 			self.batch_t = np.zeros(self.batch_size * (1 + self.negative_ent + self.negative_rel), dtype = np.int64)
 			self.batch_r = np.zeros(self.batch_size * (1 + self.negative_ent + self.negative_rel), dtype = np.int64)
-			self.batch_y = np.zeros(self.batch_size * (1 + self.negative_ent + self.negative_rel), dtype = np.float32)
-			logging.warning('Assigned batches')
+			self.batch_y = np.zeros(self.batch_size * (1 + self.negative_ent + self.negative_rel), dtype = np.float32)			
 			self.batch_h_addr = self.batch_h.__array_interface__['data'][0]
 			self.batch_t_addr = self.batch_t.__array_interface__['data'][0]
 			self.batch_r_addr = self.batch_r.__array_interface__['data'][0]
-			self.batch_y_addr = self.batch_y.__array_interface__['data'][0]
-			logging.warning('Assigned np array interfaces')
+			self.batch_y_addr = self.batch_y.__array_interface__['data'][0]			
 			if self.freeze_train_embeddings:
 				self.ent_embedding_initializer = self.set_ent_embedding_initializer(self.embedding_initializer_path)
 				self.rel_embedding_initializer = self.set_rel_embedding_initializer(self.embedding_initializer_path)
-				logging.warning('initialized embeddings')
+				logging.warning('Initialized embeddings from: {}'.format(self.embedding_initializer_path))
 
 		if self.test_link_prediction:
 			self.init_link_prediction()
@@ -231,7 +229,7 @@ class Config(object):
 
 	# call C function for sampling
 	def sampling(self):
-		self.lib.sampling(self.batch_h_addr, self.batch_t_addr, self.batch_r_addr, self.batch_y_addr, self.batch_size, self.negative_ent, self.negative_rel, self.get_minimum_training_index())
+		self.lib.sampling(self.batch_h_addr, self.batch_t_addr, self.batch_r_addr, self.batch_y_addr, self.batch_size, self.negative_ent, self.negative_rel)
 
 	# save model
 	def save_tensorflow(self):
@@ -320,80 +318,49 @@ class Config(object):
 						self.optimizer = tf.train.GradientDescentOptimizer(self.alpha)
 					grads_and_vars = self.optimizer.compute_gradients(self.trainModel.loss)
 					if self.freeze_train_embeddings:
-						# print("here are the trainable variables!")
-						# print( )
-						# # See: https://stackoverflow.com/questions/35803425/update-only-part-of-the-word-embedding-matrix-in-tensorflow
-						# # Goal: Take indices from some internal variable, apply gradient update only to that set of indices
-						# print("here comes grads")
-						# print(grads_and_vars)
-						# print("That was grads")
+						# The below based vaguely on this SO question:
+						# https://stackoverflow.com/questions/35803425/update-only-part-of-the-word-embedding-matrix-in-tensorflow
+						# Goal: Take indices from indexedSlices object, which encodes which values are involved in the forward pass
+						# and are trainable, mask any gradients which apply to values we don;t want to change (i.e. those 
+						# created during initial training) and apply masked gradient update (impacting only those embeddings created 
+						# during test/val)
 
-						# print("ent_grads")
-						# ent_grads = grads_and_vars[0][0]
-						# print(ent_grads)
+						# Get the grads and vars for each embedding
+						ent_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[0]) # Ent embeddings						
+						rel_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[1]) # Rel embeddings	
 
-						# print("rel_grads")
-						# rel_grads = grads_and_vars[1][0]
-						# print(rel_grads)
+						# Extract the gradients for entities and relationships
+						ent_grads = ent_grads_and_var[0][0]
+						rel_grads = rel_grads_and_var[0][0]
 
-						self.ent_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[0]) # Ent embeddings						
-						self.rel_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[1]) # Rel embeddings	
+						# Create a mask of 1s and 0s for whether or not the gradient corresponds to a value in the new data or not
+						# That is, if the index of the gradient (and by extension the entity or relation) is greater than or equal to the
+						# length of the training embedding (self.xxx_embedding_length) then we set it to 1, else 0. If the value is 0, then 
+						# the gradient will not be propogated
+						ent_mask = tf.cast(ent_grads.indices >= tf.constant(self.ent_embedding_length, dtype=tf.int64), tf.float32)
+						rel_mask = tf.cast(rel_grads.indices >= tf.constant(self.rel_embedding_length, dtype=tf.int64), tf.float32)
 
-						# print("Streamin model ports")
-						# print(tf.GraphKeys._STREAMING_MODEL_PORTS)
-						self.rel_grads = self.rel_grads_and_var[0][0]
-						self.ent_grads = self.ent_grads_and_var[0][0]
+						# Mask the gradients using the above derived mask
+						# The mask has to be reshaped to conform to the shape of the gradients.values
+						ent_grads_masked = tf.reshape(ent_mask, [tf.shape(ent_mask)[0],1]) * ent_grads.values
+						rel_grads_masked = tf.reshape(rel_mask, [tf.shape(rel_mask)[0],1]) * rel_grads.values
 
-						self.rel_mask = tf.cast(self.rel_grads.indices > tf.constant(1344, dtype=tf.int64), tf.float32)
+						# Reconstruct the grad and var tuple for ent and rel
+						# This reconstruction is required because tuples are immutable
+						# We should probbaly find a more principled way of doing this without relying on indices that have no names. makes it all a bit opaque
+						ent_indexedSlices = tf.IndexedSlices(values=ent_grads_masked, indices=grads_and_vars[0][0].indices, dense_shape=grads_and_vars[0][0].dense_shape)
+						ent_variable = grads_and_vars[0][1]
+						ent_grads_and_var_tuple = (ent_indexedSlices,ent_variable)
 
-
-						print("self.rel_grads")
-						print(self.rel_grads)
-						self.rel_grads_masked = tf.reshape(self.rel_mask, [tf.shape(self.rel_mask)[0],1])* self.rel_grads.values
-						print("self.rel_grads_masked")
-						print(self.rel_grads_masked)
-						print("grads_and_vars")
-						print(grads_and_vars)
-						print("grads_and_vars[1] - rel grads and vars")
-						print(grads_and_vars[1])
-						print("grads_and_vars[1][0] - rel grads IndexedSlices")
-						print(grads_and_vars[1][0])
-						print("grads_and_vars[1][0].values - rel grads IndexedSlices values")
-						print(grads_and_vars[1][0].values)
-						# Swap in the masked values by reubilding the tuple
-						rel_indexedSlices = tf.IndexedSlices(values=self.rel_grads_masked, indices=grads_and_vars[1][0].indices, dense_shape=grads_and_vars[1][0].dense_shape)
+						rel_indexedSlices = tf.IndexedSlices(values=rel_grads_masked, indices=grads_and_vars[1][0].indices, dense_shape=grads_and_vars[1][0].dense_shape)
 						rel_variable = grads_and_vars[1][1]
 						rel_grads_and_var_tuple = (rel_indexedSlices,rel_variable)
 
-						# Rel
-						# Success!!!!!
+						# swap in the newly reconstructed embedding grad+var tuples
+						grads_and_vars[0] = ent_grads_and_var_tuple
 						grads_and_vars[1] = rel_grads_and_var_tuple
-						print("grads_and_vars[1][0].values - rel grads IndexedSlices values after swap")
-						print(grads_and_vars[1][0].values)
 
-						# n_hidden=100
-						# # indices_to_update = tf.cast(np.array([[False for hidden_layer in range(n_hidden)] for idx in range(1345)] + [[True for hidden_layer in range(n_hidden)] for idx in range(1346-1345)]), dtype=tf.bool)
-						# # indices_to_update = tf.cast(np.array([False for idx in range(1345)] + [True for idx in range(1346-1345)]), dtype=tf.bool)
-						# indices_to_update = tf.cast(np.array([1348]), dtype=tf.int64)
-
-						# # Gather rel gradients and indices
-						# self.rel_grads_gathered = tf.gather(self.rel_grads, indices_to_update)
-						# print(self.rel_grads_gathered)
-
-						# rel_gather_emb = tf.gather(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[1], range(1346))		
-						# rel_gather_emb = self.entry_stop_gradients(self.rel_grads.values, indices_to_update)
-						# print(rel_gather_emb)			
-						# print(self.grads_and_vars2)
-
-						# print("List comp")
-						# print([((self.zero_non_important_gradients(idx_slice, [1345])), var) for idx_slice, var in grads_and_vars])
-						# print(grads_and_vars2[0][0].indices)
-
-
-						# self.train_op = self.optimizer.apply_gradients(rel_gather_emb)	
-
-						self.train_op = self.optimizer.apply_gradients(grads_and_vars)
-						# self.train_op = self.optimizer.apply_gradients([tf.IndexedSlices(grad.values, grad.indices)])
+						self.train_op = self.optimizer.apply_gradients(grads_and_vars)						
 
 					else: 						
 						self.train_op = self.optimizer.apply_gradients(grads_and_vars)
@@ -407,49 +374,7 @@ class Config(object):
 			self.trainModel.batch_r: batch_r,
 			self.trainModel.batch_y: batch_y
 		}
-
-		if self.freeze_train_embeddings:
-			_, loss, rel_indices, rel_grad_values, rel_mask, rel_grads_masked = self.sess.run([self.train_op, self.trainModel.loss, self.rel_grads.indices, self.rel_grads.values, self.rel_mask, self.rel_grads_masked], feed_dict)
-			# print("REL IDX")
-			# print(rel_indices)
-			# # mask = rel_indices > 1346
-			# # print(mask*rel_indices)
-			# print(rel_mask)
-			# print("Rel Vals")
-			# print(rel_grads_masked)
-			# # print(mask.reshape([mask.shape[0],1]) * rel_grad_values)
-
-			# fn = "./res/rel_grads.txt"
-			# if os.path.exists(fn):
-			#     append_write = 'a' # append if already exists
-			# else:
-			#     append_write = 'w' # make a new file if not
-			# with open(fn, append_write) as f:							
-			# 	f.write("\t".join([", ".join([str(value) for value in x]) for x in rel_grad_values]))
-			# 	f.write("\n")	
-
-			# fn = "./res/rel_grads_masked.txt"
-			# if os.path.exists(fn):
-			#     append_write = 'a' # append if already exists
-			# else:
-			#     append_write = 'w' # make a new file if not
-			# with open(fn, append_write) as f:							
-			# 	f.write("\t".join([", ".join([str(value) for value in x]) for x in rel_grads_masked]))
-			# 	f.write("\n")	
-
-			# fn = "./res/rel_grads_masked.txt"
-			# if os.path.exists(fn):
-			#     append_write = 'a' # append if already exists
-			# else:
-			#     append_write = 'w' # make a new file if not
-			# with open(fn, append_write) as f:							
-			# 	f.write("\t".join([", ".join([str(value) for value in x]) for x in mask.reshape([mask.shape[0],1])*rel_grad_values]))
-			# 	f.write("\n")							
-
-				# print(gv[0][0].indices[0:20])			
-		else:
-			_, loss = self.sess.run([self.train_op, self.trainModel.loss], feed_dict)
-
+		_, loss = self.sess.run([self.train_op, self.trainModel.loss], feed_dict)	
 
 		return loss
 
@@ -633,26 +558,27 @@ class Config(object):
 
 		embedding_dict = json.loads(embs.read())	
 		ent_embedding = embedding_dict["ent_embeddings"]
+		self.ent_embedding_length = len(ent_embedding)
 
 		# Compare to length of the training embedding to the total number of entities to see how many 
 		# new rows we need to append to the embdding initializer
-		if self.entTotal > len(ent_embedding):
-			print("Too many entities!")
-			print("Total Entities in data: {} ".format(self.entTotal))
-			print("Total Entities in Embedding file: {}".format(len(ent_embedding)))
-			required_new_vectors = self.entTotal - len(ent_embedding)
-			# new_ent_embedding = tf.Variable(name="new_ent_embedding",\
-			# 			  shape = [self.entTotal - len(ent_embedding), self.hidden_size],\
-			# 			  initializer = tf.contrib.layers.xavier_initializer(uniform = False))
-			# print(new_ent_embedding.initialized_value())
-			#
-			ent_bound = np.sqrt(6 / (self.entTotal + self.hidden_size)) # Xavier init:  sqrt(6 / (fan_in + fan_out))
+		if self.entTotal > self.ent_embedding_length:
+			print("New entities found:")
+			print("-- Total Entities in embedding file: {}".format(self.ent_embedding_length))			
+			print("-- Total Entities in data: {} ".format(self.entTotal))
+			
+			required_new_vectors = self.entTotal - self.ent_embedding_length
+
+			# Perform Xavier initialization for the new embeddings:  sqrt(6 / (fan_in + fan_out))
+			# Not clear whether we should initialize to the same fan size as the original embeddings
+			# (i.e. self.ent_embedding_length)
+			# Or the fan size for the original + new embeddings (i.e. self.entTotal) 
+			ent_bound = np.sqrt(6 / (self.entTotal + self.hidden_size)) 
 			new_ent_embedding = [np.random.uniform(-ent_bound,ent_bound,self.hidden_size).tolist()\
-			 for x in range(self.entTotal - len(ent_embedding))]
+				for x in range(self.entTotal - len(ent_embedding))]
 			
 			ent_embedding = ent_embedding + new_ent_embedding
-			self.ent_update_slices = [len(ent_embedding) - idx for idx in range(required_new_vectors)]
-
+			# self.ent_update_slices = [self.ent_embedding_length - idx for idx in range(required_new_vectors)]
 
 		return tf.constant_initializer(ent_embedding, verify_shape=True)		
 
@@ -666,14 +592,14 @@ class Config(object):
 
 		embedding_dict = json.loads(embs.read())	
 		rel_embedding = embedding_dict["rel_embeddings"]
+		self.rel_embedding_length = len(rel_embedding)
 
-		if self.relTotal > len(rel_embedding):
-			# In this case we need to create randomly initialized embeddings for the
-			# new relationships
-			print("Too many relationships!")
-			print("Total Relationships in data: {} ".format(self.relTotal))
-			print("Total Relationships in Embedding file: {}".format(len(rel_embedding)))
-			required_new_vectors = self.relTotal - len(rel_embedding)
+		if self.relTotal > self.rel_embedding_length :
+			print("New relationships found:")
+			print("-- Total Relationships in embedding file: {}".format(len(rel_embedding)))			
+			print("-- Total Relationships in data: {} ".format(self.relTotal))
+			
+			required_new_vectors = self.relTotal - self.rel_embedding_length 
 			# TODO: Find a good way to initialize the vectors
 			# new_rel_embedding = tf.Variable(name="new_rel_embedding",\
 			# 			  shape = [self.relTotal - len(rel_embedding), self.hidden_size],\
@@ -681,34 +607,10 @@ class Config(object):
 			# print(new_rel_embedding.initialized_value())
 			rel_bound = np.sqrt(6 / (self.relTotal + self.hidden_size)) # Xavier init:  sqrt(6 / (fan_in + fan_out))
 			new_rel_embedding = [np.random.uniform(-rel_bound, rel_bound, self.hidden_size).tolist()\
-			 for x in range(required_new_vectors)]
+				for x in range(required_new_vectors)]
 			
 			rel_embedding = rel_embedding + new_rel_embedding	
-			self.rel_update_slices = [len(rel_embedding) - idx for idx in range(required_new_vectors)]
+			# self.rel_update_slices = [self.rel_embedding_length  - idx for idx in range(required_new_vectors)]
 
 		return tf.constant_initializer(rel_embedding, verify_shape=True)	
-
-	def get_minimum_training_index(self):
-		"""Need to find the difference between the original training file and our current file		
-		"""	
-
-		#TODO Obviously figure out how to make this work, don't be ridiculous
-		return 483144 
-	
-	def zero_non_important_gradients(idx_slice, important_indices=[]):
-		values = idx_slice.values
-		indices = idx_slice.indices
-
-		for idx in enumerate(values):
-			if indices[idx] not in important_indices:
-				values[idx] = 0
-		return tf.IndexedSlices(values=values, indices=indices, dense_shape=idx_slice.dense_shape)
-
-	def entry_stop_gradients(self, target, mask):
-	    mask_h = tf.logical_not(mask)
-	    
-	    mask = tf.cast(mask, dtype=target.dtype)
-	    mask_h = tf.cast(mask_h, dtype=target.dtype)
-	    
-	    return tf.stop_gradient(mask_h * target) + mask * target		
 
