@@ -550,6 +550,7 @@ class Config(object):
 		# new embeddings append to it		
 		# We also need to get the indices for updates
 
+		# Need to fix this - right now it leaves the file open. Just use a with statement 
 		try:
 			embs = open(embedding_path, 'r')
     	# Store configuration file values
