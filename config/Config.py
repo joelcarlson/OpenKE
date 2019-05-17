@@ -343,8 +343,33 @@ class Config(object):
 						# print(tf.GraphKeys._STREAMING_MODEL_PORTS)
 						self.rel_grads = self.rel_grads_and_var[0][0]
 						self.ent_grads = self.ent_grads_and_var[0][0]
-						print("self.relgrads")
+
+						self.rel_mask = tf.cast(self.rel_grads.indices > tf.constant(1344, dtype=tf.int64), tf.float32)
+
+
+						print("self.rel_grads")
 						print(self.rel_grads)
+						self.rel_grads_masked = tf.reshape(self.rel_mask, [tf.shape(self.rel_mask)[0],1])* self.rel_grads.values
+						print("self.rel_grads_masked")
+						print(self.rel_grads_masked)
+						print("grads_and_vars")
+						print(grads_and_vars)
+						print("grads_and_vars[1] - rel grads and vars")
+						print(grads_and_vars[1])
+						print("grads_and_vars[1][0] - rel grads IndexedSlices")
+						print(grads_and_vars[1][0])
+						print("grads_and_vars[1][0].values - rel grads IndexedSlices values")
+						print(grads_and_vars[1][0].values)
+						# Swap in the masked values by reubilding the tuple
+						rel_indexedSlices = tf.IndexedSlices(values=self.rel_grads_masked, indices=grads_and_vars[1][0].indices, dense_shape=grads_and_vars[1][0].dense_shape)
+						rel_variable = grads_and_vars[1][1]
+						rel_grads_and_var_tuple = (rel_indexedSlices,rel_variable)
+
+						# Rel
+						# Success!!!!!
+						grads_and_vars[1] = rel_grads_and_var_tuple
+						print("grads_and_vars[1][0].values - rel grads IndexedSlices values after swap")
+						print(grads_and_vars[1][0].values)
 
 						# n_hidden=100
 						# # indices_to_update = tf.cast(np.array([[False for hidden_layer in range(n_hidden)] for idx in range(1345)] + [[True for hidden_layer in range(n_hidden)] for idx in range(1346-1345)]), dtype=tf.bool)
@@ -384,68 +409,44 @@ class Config(object):
 		}
 
 		if self.freeze_train_embeddings:
-			_, loss, rel_indices, rel_grad_values = self.sess.run([self.train_op, self.trainModel.loss, self.rel_grads.indices, self.rel_grads.values], feed_dict)
-			print("REL IDX")
-			print(rel_indices)
-			mask = rel_indices > 1346
-			print(mask*rel_indices)
-			print("Rel Vals")
-			print(mask.reshape([mask.shape[0],1]) * rel_grad_values)
+			_, loss, rel_indices, rel_grad_values, rel_mask, rel_grads_masked = self.sess.run([self.train_op, self.trainModel.loss, self.rel_grads.indices, self.rel_grads.values, self.rel_mask, self.rel_grads_masked], feed_dict)
+			# print("REL IDX")
+			# print(rel_indices)
+			# # mask = rel_indices > 1346
+			# # print(mask*rel_indices)
+			# print(rel_mask)
+			# print("Rel Vals")
+			# print(rel_grads_masked)
+			# # print(mask.reshape([mask.shape[0],1]) * rel_grad_values)
 
-			fn = "./res/rel_grads.txt"
-			if os.path.exists(fn):
-			    append_write = 'a' # append if already exists
-			else:
-			    append_write = 'w' # make a new file if not
-			with open(fn, append_write) as f:							
-				f.write("\t".join([", ".join([str(value) for value in x]) for x in rel_grad_values]))
-				f.write("\n")	
-
-			fn = "./res/rel_grads_masked.txt"
-			if os.path.exists(fn):
-			    append_write = 'a' # append if already exists
-			else:
-			    append_write = 'w' # make a new file if not
-			with open(fn, append_write) as f:							
-				f.write("\t".join([", ".join([str(value) for value in x]) for x in mask.reshape([mask.shape[0],1])*rel_grad_values]))
-				f.write("\n")							
-
-			# print(len(pos_r))
-			# print(pos_r) # First 100 indices from batch
-
-			# _, loss, ent_gv, rel_gv = self.sess.run([self.train_op, self.trainModel.loss, self.ent_grads, self.rel_grads], feed_dict)
-			# print("REL GV")
-			# print(rel_gv)
-
-
-			# rel_gv_idxSlice = rel_gv[0][0]
-			# # print("rel_gv_idxSlice")
-			# # print(rel_gv_idxSlice.indices)
-
-			# print("max index: " + str(max(rel_gv_idxSlice.indices)))
-			# print("min index: " + str(min(rel_gv_idxSlice.indices)))
-			# print("len index: " + str(len(rel_gv_idxSlice.indices)))
-			# fn = "./res/rel_gv_idxSlice_indices.txt"
+			# fn = "./res/rel_grads.txt"
 			# if os.path.exists(fn):
 			#     append_write = 'a' # append if already exists
 			# else:
 			#     append_write = 'w' # make a new file if not
-			# with open(fn, append_write) as f:
-			# 	f.write("\t".join([str(x) for x in rel_gv_idxSlice.indices[0:100]]))
-			# 	f.write("\n")
+			# with open(fn, append_write) as f:							
+			# 	f.write("\t".join([", ".join([str(value) for value in x]) for x in rel_grad_values]))
+			# 	f.write("\n")	
 
-			# fn = "./res/rel_gv_idxSlice_values.txt"
+			# fn = "./res/rel_grads_masked.txt"
 			# if os.path.exists(fn):
 			#     append_write = 'a' # append if already exists
 			# else:
 			#     append_write = 'w' # make a new file if not
-			# with open(fn, append_write) as f:
-			# 	# Each value a matrix??
-			# 	print("value dimensions = " + str(len(rel_gv_idxSlice.values[0])))
-			# 	f.write("\t".join([", ".join([str(value) for value in x]) for x in rel_gv_idxSlice.values[0:100]]))
-			# 	f.write("\n")			
+			# with open(fn, append_write) as f:							
+			# 	f.write("\t".join([", ".join([str(value) for value in x]) for x in rel_grads_masked]))
+			# 	f.write("\n")	
 
-			# print(gv[0][0].indices[0:20])			
+			# fn = "./res/rel_grads_masked.txt"
+			# if os.path.exists(fn):
+			#     append_write = 'a' # append if already exists
+			# else:
+			#     append_write = 'w' # make a new file if not
+			# with open(fn, append_write) as f:							
+			# 	f.write("\t".join([", ".join([str(value) for value in x]) for x in mask.reshape([mask.shape[0],1])*rel_grad_values]))
+			# 	f.write("\n")							
+
+				# print(gv[0][0].indices[0:20])			
 		else:
 			_, loss = self.sess.run([self.train_op, self.trainModel.loss], feed_dict)
 

@@ -31,18 +31,18 @@ class TransE_freeze(Model):
 
 		logging.warning('Initialized embddings in transE')
 		# Initialize to be the size of the difference between new and old entity2id and relation2id files, respectively
-		self.test_ent_embeddings = tf.get_variable(name = "test_ent_embeddings",\
-		    shape = [12, config.hidden_size],\
-		    initializer = tf.contrib.layers.xavier_initializer(uniform = False))
-		self.test_rel_embeddings = tf.get_variable(name = "test_rel_embeddings",\
-			shape = [9, config.hidden_size],\
-			initializer = tf.contrib.layers.xavier_initializer(uniform = False))
+		# self.test_ent_embeddings = tf.get_variable(name = "test_ent_embeddings",\
+		#     shape = [12, config.hidden_size],\
+		#     initializer = tf.contrib.layers.xavier_initializer(uniform = False))
+		# self.test_rel_embeddings = tf.get_variable(name = "test_rel_embeddings",\
+		# 	shape = [9, config.hidden_size],\
+		# 	initializer = tf.contrib.layers.xavier_initializer(uniform = False))
 
 		self.parameter_lists = {"ent_embeddings":self.ent_embeddings, \
-								"rel_embeddings":self.rel_embeddings, \
-								"test_ent_embeddings":self.test_ent_embeddings, \
-								"test_rel_embeddings":self.test_rel_embeddings								
-								}
+								"rel_embeddings":self.rel_embeddings}#, \
+								# "test_ent_embeddings":self.test_ent_embeddings, \
+								# "test_rel_embeddings":self.test_rel_embeddings								
+								# }
 
 	def loss_def(self):
 		#Obtaining the initial configuration of the model
