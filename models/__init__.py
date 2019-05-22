@@ -10,4 +10,5 @@ from .DistMult import DistMult
 from .DistMult_freeze import DistMult_freeze
 from .HolE import HolE
 from .ComplEx import ComplEx
+from .ComplEx_freeze import ComplEx_freeze
 from .Analogy import Analogy

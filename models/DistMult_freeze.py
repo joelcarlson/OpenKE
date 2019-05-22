@@ -13,13 +13,15 @@ class DistMult_freeze(Model):
 
 	def embedding_def(self):
 		config = self.get_config()
+		ent_initilializer = tf.constant_initializer(config.ent_embedding_initializer , verify_shape=True)	
+		rel_initilializer = tf.constant_initializer(config.rel_embedding_initializer , verify_shape=True)			
 		self.ent_embeddings = tf.get_variable(name = "ent_embeddings",\
 		  shape = [config.entTotal, config.hidden_size],\
-		  initializer = config.ent_embedding_initializer,\
+		  initializer = ent_initilializer,\
 		  trainable = True) #initialize with old embeddings
 		self.rel_embeddings = tf.get_variable(name = "rel_embeddings",\
           shape = [config.relTotal, config.hidden_size],\
-		  initializer = config.rel_embedding_initializer,\
+		  initializer = rel_initilializer,\
 		  trainable = True) #initialize with old embeddings
 		self.parameter_lists = {"ent_embeddings":self.ent_embeddings, \
 								"rel_embeddings":self.rel_embeddings}

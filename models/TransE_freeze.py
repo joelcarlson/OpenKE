@@ -16,17 +16,18 @@ class TransE_freeze(Model):
 	def embedding_def(self):
 		#Obtaining the initial configuration of the model
 		config = self.get_config()
-		
+		ent_initilializer = tf.constant_initializer(config.ent_embedding_initializer , verify_shape=True)	
+		rel_initilializer = tf.constant_initializer(config.rel_embedding_initializer , verify_shape=True)	
 		#Defining required parameters of the model, including embeddings of entities and relations
 		# self.ent_embeddings = tf.get_variable(name = "ent_embeddings", shape = [config.entTotal, config.hidden_size], initializer = ent_embedding_initializer, trainable=FALSE) #initialize with old embeddings
 		# self.rel_embeddings = tf.get_variable(name = "rel_embeddings", shape = [config.relTotal, config.hidden_size], initializer = rel_embedding_initializer, trainable=FALSE) #initialize with old embeddings
 		self.ent_embeddings = tf.get_variable(name = "ent_embeddings",\
 		  shape = [config.entTotal, config.hidden_size],\
-		  initializer = config.ent_embedding_initializer,\
+		  initializer = ent_initilializer,\
 		  trainable = True) #initialize with old embeddings
 		self.rel_embeddings = tf.get_variable(name = "rel_embeddings",\
           shape = [config.relTotal, config.hidden_size],\
-		  initializer = config.rel_embedding_initializer,\
+		  initializer = rel_initilializer,\
 		  trainable = True) #initialize with old embeddings
 
 		logging.warning('Initialized embddings in transE')
