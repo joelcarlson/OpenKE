@@ -365,46 +365,67 @@ class Config(object):
 
 						# Hack together ComplEx for evaluation purposes, fix this section up later
 						# If the performance is good
-						if len(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)) == 4: # ComplEx 
-							logging.warning("grads and vars: {}".format(grads_and_vars))
-							logging.warning('collection {}'.format(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)))	
-							ent_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[0]) # Ent embeddings						
-							rel_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[1]) # Rel embeddings	
+						if len(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)) == 4: # ComplEx , find a better way to know what model we have chosen
+							
+							ent1_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss,\
+							 tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[0]) # Ent real embeddings						
+							ent2_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss,\
+							 tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[1]) # Ent im embeddings							
+							rel1_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss,\
+							 tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[2]) # Rel real embeddings	
+							rel2_grads_and_var = self.optimizer.compute_gradients(self.trainModel.loss,\
+							 tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[3]) # Rel im embeddings
 
 							# Extract the gradients for entities and relationships
-							ent_grads = ent_grads_and_var[0][0]
-							rel_grads = rel_grads_and_var[0][0]
+							ent1_grads = ent1_grads_and_var[0][0]
+							ent2_grads = ent2_grads_and_var[0][0]
+							rel1_grads = rel1_grads_and_var[0][0]
+							rel2_grads = rel2_grads_and_var[0][0]
 
 							# Create a mask of 1s and 0s for whether or not the gradient corresponds to a value in the new data or not
 							# That is, if the index of the gradient (and by extension the entity or relation) is greater than or equal to the
 							# length of the training embedding (self.xxx_embedding_length) then we set it to 1, else 0. If the value is 0, then 
 							# the gradient will not be propogated
-							ent_mask = tf.cast(ent_grads.indices >= tf.constant(self.ent_embedding_length, dtype=tf.int64), tf.float32)
-							rel_mask = tf.cast(rel_grads.indices >= tf.constant(self.rel_embedding_length, dtype=tf.int64), tf.float32)
+							ent1_mask = tf.cast(ent1_grads.indices >= tf.constant(self.ent_embedding_length, dtype=tf.int64), tf.float32)
+							ent2_mask = tf.cast(ent2_grads.indices >= tf.constant(self.ent_embedding_length, dtype=tf.int64), tf.float32)
+							rel1_mask = tf.cast(rel1_grads.indices >= tf.constant(self.rel_embedding_length, dtype=tf.int64), tf.float32)
+							rel2_mask = tf.cast(rel2_grads.indices >= tf.constant(self.rel_embedding_length, dtype=tf.int64), tf.float32)
 
 							# Mask the gradients using the above derived mask
 							# The mask has to be reshaped to conform to the shape of the gradients.values
-							ent_grads_masked = tf.reshape(ent_mask, [tf.shape(ent_mask)[0],1]) * ent_grads.values
-							rel_grads_masked = tf.reshape(rel_mask, [tf.shape(rel_mask)[0],1]) * rel_grads.values
+							ent1_grads_masked = tf.reshape(ent1_mask, [tf.shape(ent1_mask)[0],1]) * ent1_grads.values
+							ent2_grads_masked = tf.reshape(ent2_mask, [tf.shape(ent2_mask)[0],1]) * ent2_grads.values
+							rel1_grads_masked = tf.reshape(rel1_mask, [tf.shape(rel1_mask)[0],1]) * rel1_grads.values
+							rel2_grads_masked = tf.reshape(rel2_mask, [tf.shape(rel2_mask)[0],1]) * rel2_grads.values
 
 							# Reconstruct the grad and var tuple for ent and rel
 							# This reconstruction is required because tuples are immutable
 							# We should probbaly find a more principled way of doing this without relying on indices that have no names. makes it all a bit opaque
-							ent_indexedSlices = tf.IndexedSlices(values=ent_grads_masked, indices=grads_and_vars[0][0].indices, dense_shape=grads_and_vars[0][0].dense_shape)
-							ent_variable = grads_and_vars[0][1]
-							ent_grads_and_var_tuple = (ent_indexedSlices,ent_variable)
+							ent1_indexedSlices = tf.IndexedSlices(values=ent1_grads_masked, indices=grads_and_vars[0][0].indices, dense_shape=grads_and_vars[0][0].dense_shape)
+							ent1_variable = grads_and_vars[0][1]
+							ent1_grads_and_var_tuple = (ent1_indexedSlices,ent1_variable)
 
-							rel_indexedSlices = tf.IndexedSlices(values=rel_grads_masked, indices=grads_and_vars[1][0].indices, dense_shape=grads_and_vars[1][0].dense_shape)
-							rel_variable = grads_and_vars[1][1]
-							rel_grads_and_var_tuple = (rel_indexedSlices,rel_variable)
+							ent2_indexedSlices = tf.IndexedSlices(values=ent2_grads_masked, indices=grads_and_vars[1][0].indices, dense_shape=grads_and_vars[1][0].dense_shape)
+							ent2_variable = grads_and_vars[1][1]
+							ent2_grads_and_var_tuple = (ent2_indexedSlices,ent2_variable)							
+
+							rel1_indexedSlices = tf.IndexedSlices(values=rel1_grads_masked, indices=grads_and_vars[2][0].indices, dense_shape=grads_and_vars[2][0].dense_shape)
+							rel1_variable = grads_and_vars[2][1]
+							rel1_grads_and_var_tuple = (rel1_indexedSlices,rel1_variable)
+
+							rel2_indexedSlices = tf.IndexedSlices(values=rel2_grads_masked, indices=grads_and_vars[3][0].indices, dense_shape=grads_and_vars[3][0].dense_shape)
+							rel2_variable = grads_and_vars[3][1]
+							rel2_grads_and_var_tuple = (rel2_indexedSlices,rel2_variable)														
 
 							# swap in the newly reconstructed embedding grad+var tuples
-							grads_and_vars[0] = ent_grads_and_var_tuple
-							grads_and_vars[1] = rel_grads_and_var_tuple
+							grads_and_vars[0] = ent1_grads_and_var_tuple
+							grads_and_vars[1] = ent2_grads_and_var_tuple
+							grads_and_vars[2] = rel1_grads_and_var_tuple
+							grads_and_vars[3] = rel2_grads_and_var_tuple
 
 							self.train_op = self.optimizer.apply_gradients(grads_and_vars)										
 						else:
-							logging.warning('Models currently supported: TransE_freeze')	
+							logging.warning('Models currently supported: TransE_freeze, DistMult_freeze, ComplEx_freeze')	
 
 					else: 						
 						self.train_op = self.optimizer.apply_gradients(grads_and_vars)
