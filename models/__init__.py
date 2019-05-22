@@ -7,6 +7,7 @@ from .TransD import TransD
 from .TransR import TransR
 from .RESCAL import RESCAL
 from .DistMult import DistMult
+from .DistMult_freeze import DistMult_freeze
 from .HolE import HolE
 from .ComplEx import ComplEx
 from .Analogy import Analogy
