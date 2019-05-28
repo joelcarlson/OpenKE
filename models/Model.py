@@ -57,6 +57,8 @@ class Model(object):
 		self.predict_t = tf.placeholder(tf.int64, [None])
 		self.predict_r = tf.placeholder(tf.int64, [None])
 		self.parameter_lists = []
+		self.ld_y = tf.placeholder(tf.float32)
+		self.ld_res = tf.placeholder(tf.float32)
 
 	def embedding_def(self):
 		pass

@@ -8,6 +8,15 @@ import ctypes
 import json
 import logging
 
+# create file handler which logs even debug messages
+l1 = logging.getLogger('root')
+# l1.setLevel(logging.DEBUG)
+l1.setLevel(logging.WARNING)
+
+gv_log = logging.FileHandler('grad_vals.log')
+gv_log.setLevel(logging.DEBUG)
+l1.addHandler(gv_log)
+
 class Config(object):
 	'''
 	use ctypes to call C functions from python and set essential parameters.
@@ -309,7 +318,7 @@ class Config(object):
 					if self.optimizer != None:
 						pass
 					elif self.opt_method == "Adagrad" or self.opt_method == "adagrad":
-						self.optimizer = tf.train.AdagradOptimizer(learning_rate = self.alpha, initial_accumulator_value=1e-20)
+						self.optimizer = tf.train.AdagradOptimizer(learning_rate = self.alpha, initial_accumulator_value=0.1)
 					elif self.opt_method == "Adadelta" or self.opt_method == "adadelta":
 						self.optimizer = tf.train.AdadeltaOptimizer(self.alpha)
 					elif self.opt_method == "Adam" or self.opt_method == "adam":
@@ -397,7 +406,7 @@ class Config(object):
 							ent2_grads_masked = tf.reshape(ent2_mask, [tf.shape(ent2_mask)[0],1]) * ent2_grads.values
 							rel1_grads_masked = tf.reshape(rel1_mask, [tf.shape(rel1_mask)[0],1]) * rel1_grads.values
 							rel2_grads_masked = tf.reshape(rel2_mask, [tf.shape(rel2_mask)[0],1]) * rel2_grads.values
-
+							
 							# Reconstruct the grad and var tuple for ent and rel
 							# This reconstruction is required because tuples are immutable
 							# We should probbaly find a more principled way of doing this without relying on indices that have no names. makes it all a bit opaque
@@ -423,7 +432,16 @@ class Config(object):
 							grads_and_vars[2] = rel1_grads_and_var_tuple
 							grads_and_vars[3] = rel2_grads_and_var_tuple
 
-							self.train_op = self.optimizer.apply_gradients(grads_and_vars)										
+							# Pass a few things for debugging
+							self.ent1_variable_before = ent1_variable
+							self.ent1_grads = ent1_grads
+							self.ent1_mask = ent1_mask
+							self.ent1_grads_masked = ent1_grads_masked
+
+							logging.warning("ent1_var: {}".format(ent1_variable))
+
+							self.train_op = self.optimizer.apply_gradients(grads_and_vars)	
+							self.ent1_variable_after = ent1_variable									
 						else:
 							logging.warning('Models currently supported: TransE_freeze, DistMult_freeze, ComplEx_freeze')	
 
@@ -439,8 +457,30 @@ class Config(object):
 			self.trainModel.batch_r: batch_r,
 			self.trainModel.batch_y: batch_y
 		}
-		_, loss = self.sess.run([self.train_op, self.trainModel.loss], feed_dict)	
-
+		_, loss,ent1_grads,ent1_mask,ent1_grads_masked,ent1_variable_before,ent1_variable_after, ld_y,ld_y2, ld_res,ld_softplus,ld_loss_func  = self.sess.run([self.train_op, self.trainModel.loss, self.ent1_grads, self.ent1_mask, self.ent1_grads_masked, self.ent1_variable_before, self.ent1_variable_after, self.trainModel.ld_y,self.trainModel.ld_y2, self.trainModel.ld_res, self.trainModel.ld_softplus, self.trainModel.ld_loss_func], feed_dict)	
+		# if len(np.where(ent1_grads.indices == 4627)[0] > 0):
+		# 	check_this_one = np.where(ent1_grads.indices == 4627)[0][0]
+		# 	l1.debug("ent1_grads.values.shape : {}".format(ent1_grads.values.shape))
+		# 	l1.debug("ent1_grads.values ({}) : {}".format(check_this_one, ent1_grads.values[check_this_one][0:10]))
+		# 	l1.debug(sum([sum(abs(vect)) for vect in ent1_grads.values]))
+		# 	l1.debug("ent1_grads.indices : {}".format(ent1_grads.indices[check_this_one]))
+		# 	l1.debug("max(ent1_grads.indices) : {}".format(max(ent1_grads.indices)))
+		# 	l1.debug("min(ent1_grads.indices) : {}".format(min(ent1_grads.indices)))		
+		# 	l1.debug("ent1_mask.shape : {}".format(ent1_mask.shape))
+		# 	l1.debug("ent1_mask : {}".format(ent1_mask))
+		# 	l1.debug("sum(ent1_mask) : {}".format(sum(ent1_mask)))
+		# 	l1.debug("ent1_grads_masked.shape : {}".format(ent1_grads_masked.shape))
+		# 	l1.debug(sum([sum(abs(vect)) for vect in ent1_grads_masked]))				
+		# 	l1.debug("ent1_grads_masked : {}".format(ent1_grads_masked[check_this_one][0:10]))
+		# 	l1.debug("ent1_variable_before : {}".format(ent1_variable_before[check_this_one][0:10]))
+		# 	l1.debug("ent1_variable_after : {}".format(ent1_variable_after[check_this_one][0:10]))	
+		# 	l1.debug("ent1_variable_before == ent1_variable_after: {}".format(ent1_variable_before == ent1_variable_after))	
+		l1.debug("res = {}".format(", ".join([str(x) for x in ld_res])))
+		l1.debug("y = {}".format(", ".join([str(x) for x in ld_y])))
+		l1.debug("y = {}".format(", ".join([str(x) for x in ld_y2])))
+		l1.debug("softplus = {}".format(", ".join([str(x) for x in ld_softplus])))
+		l1.debug("loss = {}".format(ld_loss_func))				
+		l1.debug("------")
 		return loss
 
 	def test_step(self, test_h, test_t, test_r):
@@ -466,12 +506,16 @@ class Config(object):
 					for batch in range(self.nbatches):
 						self.sampling()
 						loss += self.train_step(self.batch_h, self.batch_t, self.batch_r, self.batch_y)
+
 					if self.log_on:
 						t_init = time.time()
 						t_end = time.time()
 						print('Epoch: {}, loss: {}, time: {}'.format(times, loss, (t_end - t_init)))
-					if self.exportName != None and (self.export_steps!=0 and times % self.export_steps == 0):
-						self.save_tensorflow()
+					# if self.exportName != None and (self.export_steps!=0 and times % self.export_steps == 0):
+					# 	self.save_tensorflow()
+					# print("times: {} , export_steps: {}, div: , out_path:{}".format(times, self.export_steps,  self.out_path))
+					if self.out_path != None and (self.export_steps!=0 and times % self.export_steps == 0):
+						self.save_parameters(self.out_path + "_{}".format(times))						
 					if self.early_stopping is not None:
 						if loss + min_delta < best_loss:
 							best_loss = loss
@@ -640,8 +684,13 @@ class Config(object):
 			# (i.e. self.ent_embedding_length)
 			# Or the fan size for the original + new embeddings (i.e. self.entTotal) 
 			ent_bound = np.sqrt(6 / (self.entTotal + self.hidden_size)) 
-			new_ent_embedding = [np.random.uniform(-ent_bound,ent_bound,self.hidden_size).tolist()\
-				for x in range(self.entTotal - len(ent_embedding))]
+			# new_ent_embedding = [np.random.uniform(-ent_bound,ent_bound,self.hidden_size).tolist()\
+			# 	for x in range(required_new_vectors)]
+
+			# PyTorch-BigGraph initalizes with draws from a standard normal, so we will too
+			# Updated: We initialize the sd to be 0.4 to be in accordance with empirical embedding sd
+			new_ent_embedding = [np.random.normal(loc=0.0, scale=0.4, size=self.hidden_size).tolist()\
+				for x in range(required_new_vectors)]
 			
 			ent_embedding = ent_embedding + new_ent_embedding
 			# self.ent_update_slices = [self.ent_embedding_length - idx for idx in range(required_new_vectors)]
@@ -672,9 +721,10 @@ class Config(object):
 			# 			  initializer = tf.contrib.layers.xavier_initializer(uniform = False))
 			# print(new_rel_embedding.initialized_value())
 			rel_bound = np.sqrt(6 / (self.relTotal + self.hidden_size)) # Xavier init:  sqrt(6 / (fan_in + fan_out))
-			new_rel_embedding = [np.random.uniform(-rel_bound, rel_bound, self.hidden_size).tolist()\
-				for x in range(required_new_vectors)]
-			
+			# new_rel_embedding = [np.random.uniform(-rel_bound, rel_bound, self.hidden_size).tolist()\
+			# 	for x in range(required_new_vectors)]
+			new_rel_embedding = [np.random.normal(loc=0.0, scale=0.4, size=self.hidden_size).tolist()\
+				for x in range(required_new_vectors)]			
 			rel_embedding = rel_embedding + new_rel_embedding	
 			# self.rel_update_slices = [self.rel_embedding_length  - idx for idx in range(required_new_vectors)]
 

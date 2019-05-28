@@ -4,6 +4,15 @@ import tensorflow as tf
 from .Model import Model
 import logging
 
+
+l1 = logging.getLogger('root')
+l1.setLevel(logging.WARNING)
+# l1.setLevel(logging.DEBUG)
+
+gv_log = logging.FileHandler('y_and_res.log')
+gv_log.setLevel(logging.DEBUG)
+l1.addHandler(gv_log)
+
 class ComplEx_freeze(Model):
 
 	def embedding_def(self):
@@ -21,19 +30,19 @@ class ComplEx_freeze(Model):
 
 
 		self.ent1_embeddings = tf.get_variable(name = "ent1_embeddings",\
-		  shape = [config.entTotal, config.hidden_size/2],\
+		  shape = [config.entTotal, config.hidden_size//2],\
 		  initializer = ent1_initilializer,\
 		  trainable = True) #initialize with old embeddings
 		self.ent2_embeddings = tf.get_variable(name = "ent2_embeddings",\
-		  shape = [config.entTotal, config.hidden_size/2],\
+		  shape = [config.entTotal, config.hidden_size//2],\
 		  initializer = ent2_initilializer,\
 		  trainable = True) #initialize with old embeddings		
 		self.rel1_embeddings = tf.get_variable(name = "rel1_embeddings",\
-          shape = [config.relTotal, config.hidden_size/2],\
+          shape = [config.relTotal, config.hidden_size//2],\
 		  initializer = rel1_initilializer,\
 		  trainable = True) #initialize with old embeddings
 		self.rel2_embeddings = tf.get_variable(name = "rel2_embeddings",\
-          shape = [config.relTotal, config.hidden_size/2],\
+          shape = [config.relTotal, config.hidden_size//2],\
 		  initializer = rel2_initilializer,\
 		  trainable = True) #initialize with old embeddings				  		
 
@@ -60,6 +69,9 @@ class ComplEx_freeze(Model):
 		#The shapes of h, t, r, y are (batch_size, 1 + negative_ent + negative_rel)
 		h, t, r = self.get_all_instance()
 		y = self.get_all_labels()
+
+		logging.warning("h dim: {}".format(h.shape))
+		logging.warning("y dim: {}".format(y.shape))
 		#Embedding entities and relations of triples
 		e1_h = tf.nn.embedding_lookup(self.ent1_embeddings, h)
 		e2_h = tf.nn.embedding_lookup(self.ent2_embeddings, h)
@@ -69,7 +81,28 @@ class ComplEx_freeze(Model):
 		r2 = tf.nn.embedding_lookup(self.rel2_embeddings, r)
 		#Calculating score functions for all positive triples and negative triples
 		res = tf.reduce_sum(self._calc(e1_h, e2_h, e1_t, e2_t, r1, r2), 1, keep_dims = False)
-		loss_func = tf.reduce_mean(tf.nn.softplus(- y * res), 0, keep_dims = False)
+		
+		y_cross_ent = tf.math.divide(tf.math.add(y, tf.constant(1, dtype=tf.float32)), tf.constant(2, dtype=tf.float32))
+
+		logging.warning("Res dim: {}".format(res.shape))
+		logging.warning("- y * res dim: {}".format((- y * res).shape))
+		l1.debug("res : {}".format(res))
+		l1.debug("y : {}".format(y))
+		l1.debug("y2 : {}".format(y_cross_ent)) # Convert y to cross entropy range
+		l1.debug("------")
+
+		# loss_func = tf.reduce_mean(tf.nn.softplus(- y * res), 0, keep_dims = False) # Why use softplus here isntead of softmax?? This is like an approximation of hinge loss
+		cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(labels=tf.cast(y_cross_ent, dtype=tf.int32),logits=res)	
+		# tf.losses.softmax_cross_entropy	
+		loss_func = tf.reduce_mean(cross_entropy)
+		# loss_func = tf.reduce_mean(tf.nn.softmax(- y * res), 0, keep_dims = False) # Why use softplus here isntead of softmax??
+
+		self.ld_res = res
+		self.ld_y = y
+		self.ld_y2 = y_cross_ent
+		self.ld_softplus = tf.nn.softplus(- y * res)
+		self.ld_loss_func = loss_func
+
 		regul_func = tf.reduce_mean(e1_h ** 2) + tf.reduce_mean(e1_t ** 2) + tf.reduce_mean(e2_h ** 2) + tf.reduce_mean(e2_t ** 2) + tf.reduce_mean(r1 ** 2) + tf.reduce_mean(r2 ** 2)
 		#Calculating loss to get what the framework will optimize
 		self.loss =  loss_func + config.lmbda * regul_func
