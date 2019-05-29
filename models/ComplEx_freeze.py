@@ -64,6 +64,10 @@ class ComplEx_freeze(Model):
 	def loss_def(self):
 		#Obtaining the initial configuration of the model
 		config = self.get_config()
+
+		batch_size = config.batch_size
+		negative_ent = config.negative_ent
+		negative_rel = config.negative_rel
 		#To get positive triples and negative triples for training
 		#To get labels for the triples, positive triples as 1 and negative triples as -1
 		#The shapes of h, t, r, y are (batch_size, 1 + negative_ent + negative_rel)
@@ -80,28 +84,44 @@ class ComplEx_freeze(Model):
 		r1 = tf.nn.embedding_lookup(self.rel1_embeddings, r)
 		r2 = tf.nn.embedding_lookup(self.rel2_embeddings, r)
 		#Calculating score functions for all positive triples and negative triples
-		res = tf.reduce_sum(self._calc(e1_h, e2_h, e1_t, e2_t, r1, r2), 1, keep_dims = False)
-		
-		y_cross_ent = tf.math.divide(tf.math.add(y, tf.constant(1, dtype=tf.float32)), tf.constant(2, dtype=tf.float32))
+		res = tf.reduce_sum(self._calc(e1_h, e2_h, e1_t, e2_t, r1, r2), 1, keep_dims = False)	
+
+		# Labels are simply a list of 1s as long as the batch size, with an accompanying zero
+		labels = tf.stack(tf.split(tf.tile([1,0],[batch_size]), batch_size))
+
+		# Get positive and negative scores. Positive scores are the first N_batch size, and
+		# the remaining are the negative scores. for each positive score there are negative_ent + negative_rel
+		# negative scores
+		pos_scores = tf.split(res[0:batch_size], batch_size)
+		neg_scores = tf.split(res[batch_size:], batch_size)
+
+		# shortcut to save computation time
+		logsumexp_neg_scores = tf.math.reduce_logsumexp(neg_scores, 1, keep_dims=True)
+		logits = tf.concat([pos_scores, logsumexp_neg_scores], axis=1)
+		loss_func = tf.losses.softmax_cross_entropy(onehot_labels=labels,
+		                                       logits=logits,
+		                                       reduction=tf.losses.Reduction.SUM)
+
+		# To convert from (-1, 1) coding we add 1, then divide by 2 to go to (0, 1) coding 
+		# y_cross_ent = tf.cast(tf.math.divide(tf.math.add(y, tf.constant(1, dtype=tf.float32)), tf.constant(2, dtype=tf.float32)), dtype=tf.int32)
+
 
 		logging.warning("Res dim: {}".format(res.shape))
 		logging.warning("- y * res dim: {}".format((- y * res).shape))
 		l1.debug("res : {}".format(res))
 		l1.debug("y : {}".format(y))
-		l1.debug("y2 : {}".format(y_cross_ent)) # Convert y to cross entropy range
+		# l1.debug("y2 : {}".format(y_cross_ent)) # Convert y to cross entropy range
 		l1.debug("------")
 
-		# loss_func = tf.reduce_mean(tf.nn.softplus(- y * res), 0, keep_dims = False) # Why use softplus here isntead of softmax?? This is like an approximation of hinge loss
-		cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(labels=tf.cast(y_cross_ent, dtype=tf.int32),logits=res)	
-		# tf.losses.softmax_cross_entropy	
-		loss_func = tf.reduce_mean(cross_entropy)
-		# loss_func = tf.reduce_mean(tf.nn.softmax(- y * res), 0, keep_dims = False) # Why use softplus here isntead of softmax??
-
-		self.ld_res = res
-		self.ld_y = y
-		self.ld_y2 = y_cross_ent
-		self.ld_softplus = tf.nn.softplus(- y * res)
-		self.ld_loss_func = loss_func
+		
+		# cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(labels=y_cross_ent,logits=res)	
+		
+		# loss_func = tf.reduce_mean(cross_entropy)
+		# self.ld_res = res
+		# self.ld_y = y
+		# # self.ld_y2 = y_cross_ent
+		# # self.ld_softplus = tf.nn.softplus(- y * res)
+		# self.ld_loss_func = loss_func
 
 		regul_func = tf.reduce_mean(e1_h ** 2) + tf.reduce_mean(e1_t ** 2) + tf.reduce_mean(e2_h ** 2) + tf.reduce_mean(e2_t ** 2) + tf.reduce_mean(r1 ** 2) + tf.reduce_mean(r2 ** 2)
 		#Calculating loss to get what the framework will optimize

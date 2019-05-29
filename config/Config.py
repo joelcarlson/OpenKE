@@ -457,7 +457,8 @@ class Config(object):
 			self.trainModel.batch_r: batch_r,
 			self.trainModel.batch_y: batch_y
 		}
-		_, loss,ent1_grads,ent1_mask,ent1_grads_masked,ent1_variable_before,ent1_variable_after, ld_y,ld_y2, ld_res,ld_softplus,ld_loss_func  = self.sess.run([self.train_op, self.trainModel.loss, self.ent1_grads, self.ent1_mask, self.ent1_grads_masked, self.ent1_variable_before, self.ent1_variable_after, self.trainModel.ld_y,self.trainModel.ld_y2, self.trainModel.ld_res, self.trainModel.ld_softplus, self.trainModel.ld_loss_func], feed_dict)	
+		# _, loss,ent1_grads,ent1_mask,ent1_grads_masked,ent1_variable_before,ent1_variable_after, ld_res,ld_loss_func, ld_y  = self.sess.run([self.train_op, self.trainModel.loss, self.ent1_grads, self.ent1_mask, self.ent1_grads_masked, self.ent1_variable_before, self.ent1_variable_after,self.trainModel.ld_res, self.trainModel.ld_loss_func, self.trainModel.ld_y], feed_dict)	
+		_, loss  = self.sess.run([self.train_op, self.trainModel.loss], feed_dict)	
 		# if len(np.where(ent1_grads.indices == 4627)[0] > 0):
 		# 	check_this_one = np.where(ent1_grads.indices == 4627)[0][0]
 		# 	l1.debug("ent1_grads.values.shape : {}".format(ent1_grads.values.shape))
@@ -475,12 +476,11 @@ class Config(object):
 		# 	l1.debug("ent1_variable_before : {}".format(ent1_variable_before[check_this_one][0:10]))
 		# 	l1.debug("ent1_variable_after : {}".format(ent1_variable_after[check_this_one][0:10]))	
 		# 	l1.debug("ent1_variable_before == ent1_variable_after: {}".format(ent1_variable_before == ent1_variable_after))	
-		l1.debug("res = {}".format(", ".join([str(x) for x in ld_res])))
-		l1.debug("y = {}".format(", ".join([str(x) for x in ld_y])))
-		l1.debug("y = {}".format(", ".join([str(x) for x in ld_y2])))
-		l1.debug("softplus = {}".format(", ".join([str(x) for x in ld_softplus])))
-		l1.debug("loss = {}".format(ld_loss_func))				
-		l1.debug("------")
+		
+		# l1.debug("res = {}".format(", ".join([str(x) for x in ld_res])))
+		# l1.debug("y = {}".format(", ".join([str(x) for x in ld_y])))		
+		# l1.debug("loss = {}".format(ld_loss_func))				
+		# l1.debug("------")
 		return loss
 
 	def test_step(self, test_h, test_t, test_r):
