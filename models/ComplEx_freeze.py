@@ -72,10 +72,10 @@ class ComplEx_freeze(Model):
 		#To get labels for the triples, positive triples as 1 and negative triples as -1
 		#The shapes of h, t, r, y are (batch_size, 1 + negative_ent + negative_rel)
 		h, t, r = self.get_all_instance()
-		y = self.get_all_labels()
+		# y = self.get_all_labels()
 
-		logging.warning("h dim: {}".format(h.shape))
-		logging.warning("y dim: {}".format(y.shape))
+		logging.warning("h dim: {}".format(h.shape)) # (neg_ent + neg_rel + 1)*batch_size (+1 is from 1 pos_ent per set of negs)
+		# logging.warning("y dim: {}".format(y.shape))
 		#Embedding entities and relations of triples
 		e1_h = tf.nn.embedding_lookup(self.ent1_embeddings, h)
 		e2_h = tf.nn.embedding_lookup(self.ent2_embeddings, h)
@@ -107,9 +107,9 @@ class ComplEx_freeze(Model):
 
 
 		logging.warning("Res dim: {}".format(res.shape))
-		logging.warning("- y * res dim: {}".format((- y * res).shape))
+		# logging.warning("- y * res dim: {}".format((- y * res).shape))
 		l1.debug("res : {}".format(res))
-		l1.debug("y : {}".format(y))
+		# l1.debug("y : {}".format(y))
 		# l1.debug("y2 : {}".format(y_cross_ent)) # Convert y to cross entropy range
 		l1.debug("------")
 
@@ -123,7 +123,28 @@ class ComplEx_freeze(Model):
 		# # self.ld_softplus = tf.nn.softplus(- y * res)
 		# self.ld_loss_func = loss_func
 
+
+		# For freezing embeddings using a typical regularizer such as this is not particularly meaningful, as it is tabulating the 
+		# function for many vectors that we have no wish to change
 		regul_func = tf.reduce_mean(e1_h ** 2) + tf.reduce_mean(e1_t ** 2) + tf.reduce_mean(e2_h ** 2) + tf.reduce_mean(e2_t ** 2) + tf.reduce_mean(r1 ** 2) + tf.reduce_mean(r2 ** 2)
+
+		
+		# I am imagining some future scenario where a part of the loss function is something that
+		# Penalizes distributional differences between positive and negative samples, since we can almost guarantee 
+		# that negative samples will be drawn from the (much larger) training set. For now, I just
+		# wish to be able to track the mean magnitude of the newly produced vectors
+		self.pos_ent_mean_magnitude = tf.reduce_mean(tf.reduce_mean(tf.math.abs(e1_h[0:batch_size,]), 1)) # Mean of means of embeddings
+		self.pos_ent_min = tf.reduce_min(e1_h[0:batch_size,])
+		self.pos_ent_max = tf.reduce_max(e1_h[0:batch_size,])
+		self.pos_ent_sd = tf.reduce_mean(tf.math.reduce_std(e1_h[0:batch_size,], 1)) # mean of sds of embeddings
+
+
+		# Another option is to clamp max norm of the weight vectors using something like the keras.constrains.MaxNorm function after weight update
+		# See: 
+		# https://stats.stackexchange.com/questions/257996/what-is-maxnorm-constraint-how-is-it-useful-in-convolutional-neural-networks
+		# https://github.com/tensorflow/tensorflow/blob/r1.13/tensorflow/python/keras/constraints.py 
+		# http://cs231n.github.io/neural-networks-2/#reg		
+
 		#Calculating loss to get what the framework will optimize
 		self.loss =  loss_func + config.lmbda * regul_func
 

@@ -458,7 +458,7 @@ class Config(object):
 			self.trainModel.batch_y: batch_y
 		}
 		# _, loss,ent1_grads,ent1_mask,ent1_grads_masked,ent1_variable_before,ent1_variable_after, ld_res,ld_loss_func, ld_y  = self.sess.run([self.train_op, self.trainModel.loss, self.ent1_grads, self.ent1_mask, self.ent1_grads_masked, self.ent1_variable_before, self.ent1_variable_after,self.trainModel.ld_res, self.trainModel.ld_loss_func, self.trainModel.ld_y], feed_dict)	
-		_, loss  = self.sess.run([self.train_op, self.trainModel.loss], feed_dict)	
+		_, loss, pos_ent_mean_magnitude, pos_ent_min, pos_ent_max, pos_ent_sd = self.sess.run([self.train_op, self.trainModel.loss, self.trainModel.pos_ent_mean_magnitude, self.trainModel.pos_ent_min, self.trainModel.pos_ent_max, self.trainModel.pos_ent_sd], feed_dict)	
 		# if len(np.where(ent1_grads.indices == 4627)[0] > 0):
 		# 	check_this_one = np.where(ent1_grads.indices == 4627)[0][0]
 		# 	l1.debug("ent1_grads.values.shape : {}".format(ent1_grads.values.shape))
@@ -481,6 +481,10 @@ class Config(object):
 		# l1.debug("y = {}".format(", ".join([str(x) for x in ld_y])))		
 		# l1.debug("loss = {}".format(ld_loss_func))				
 		# l1.debug("------")
+		self.pos_ent_mean_magnitude = pos_ent_mean_magnitude
+		self.pos_ent_min = pos_ent_min
+		self.pos_ent_max = pos_ent_max
+		self.pos_ent_sd = pos_ent_sd				
 		return loss
 
 	def test_step(self, test_h, test_t, test_r):
@@ -502,15 +506,32 @@ class Config(object):
 					best_loss = np.finfo('float32').max
 					wait_steps = 0
 				for times in range(self.train_times):
+					t_init = time.time()
 					loss = 0.0
+					pos_ent_mean_magnitude = 0.0
+					pos_ent_min = 0.0
+					pos_ent_max = 0.0
+					pos_ent_sd = 0.0			
 					for batch in range(self.nbatches):
 						self.sampling()
 						loss += self.train_step(self.batch_h, self.batch_t, self.batch_r, self.batch_y)
-
-					if self.log_on:
-						t_init = time.time()
+						pos_ent_mean_magnitude += self.pos_ent_mean_magnitude
+						pos_ent_min += self.pos_ent_min
+						pos_ent_max += self.pos_ent_max
+						pos_ent_sd += self.pos_ent_sd
+					if self.log_on:						
 						t_end = time.time()
-						print('Epoch: {}, loss: {}, time: {}'.format(times, loss, (t_end - t_init)))
+						pos_ent_mean_magnitude /= (self.nbatches)
+						pos_ent_min /= (self.nbatches)
+						pos_ent_max /= (self.nbatches)
+						pos_ent_sd /= (self.nbatches)
+						print('Epoch: {}, loss: {}, time: {}, mag: {}, sd: {}, [{}, {}]'.format(times,\
+							round(loss, 2),\
+							round(t_end - t_init, 0),\
+							round(pos_ent_mean_magnitude, 3),\
+							round(pos_ent_sd, 3),\
+							round(pos_ent_min, 3),\
+							round(pos_ent_max, 3)))
 					# if self.exportName != None and (self.export_steps!=0 and times % self.export_steps == 0):
 					# 	self.save_tensorflow()
 					# print("times: {} , export_steps: {}, div: , out_path:{}".format(times, self.export_steps,  self.out_path))
