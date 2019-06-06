@@ -10,10 +10,10 @@ class ComplEx(Model):
 	"""
 	def embedding_def(self):
 		config = self.get_config()
-		self.ent1_embeddings = tf.get_variable(name = "ent1_embeddings", shape = [config.entTotal, config.hidden_size], initializer = tf.contrib.layers.xavier_initializer(uniform = True))
-		self.rel1_embeddings = tf.get_variable(name = "rel1_embeddings", shape = [config.relTotal, config.hidden_size], initializer = tf.contrib.layers.xavier_initializer(uniform = True))
-		self.ent2_embeddings = tf.get_variable(name = "ent2_embeddings", shape = [config.entTotal, config.hidden_size], initializer = tf.contrib.layers.xavier_initializer(uniform = True))
-		self.rel2_embeddings = tf.get_variable(name = "rel2_embeddings", shape = [config.relTotal, config.hidden_size], initializer = tf.contrib.layers.xavier_initializer(uniform = True))
+		self.ent1_embeddings = tf.get_variable(name = "ent1_embeddings", shape = [config.entTotal, config.hidden_size//2], initializer = tf.contrib.layers.xavier_initializer(uniform = True))
+		self.rel1_embeddings = tf.get_variable(name = "rel1_embeddings", shape = [config.relTotal, config.hidden_size//2], initializer = tf.contrib.layers.xavier_initializer(uniform = True))
+		self.ent2_embeddings = tf.get_variable(name = "ent2_embeddings", shape = [config.entTotal, config.hidden_size//2], initializer = tf.contrib.layers.xavier_initializer(uniform = True))
+		self.rel2_embeddings = tf.get_variable(name = "rel2_embeddings", shape = [config.relTotal, config.hidden_size//2], initializer = tf.contrib.layers.xavier_initializer(uniform = True))
 		self.parameter_lists = {"ent_re_embeddings":self.ent1_embeddings, \
 								"ent_im_embeddings":self.ent2_embeddings, \
 								"rel_re_embeddings":self.rel1_embeddings, \
@@ -28,6 +28,9 @@ class ComplEx(Model):
 	def loss_def(self):
 		#Obtaining the initial configuration of the model
 		config = self.get_config()
+		batch_size = config.batch_size
+		negative_ent = config.negative_ent
+		negative_rel = config.negative_rel		
 		#To get positive triples and negative triples for training
 		#To get labels for the triples, positive triples as 1 and negative triples as -1
 		#The shapes of h, t, r, y are (batch_size, 1 + negative_ent + negative_rel)
@@ -44,6 +47,13 @@ class ComplEx(Model):
 		res = tf.reduce_sum(self._calc(e1_h, e2_h, e1_t, e2_t, r1, r2), 1, keep_dims = False)
 		loss_func = tf.reduce_mean(tf.nn.softplus(- y * res), 0, keep_dims = False)
 		regul_func = tf.reduce_mean(e1_h ** 2) + tf.reduce_mean(e1_t ** 2) + tf.reduce_mean(e2_h ** 2) + tf.reduce_mean(e2_t ** 2) + tf.reduce_mean(r1 ** 2) + tf.reduce_mean(r2 ** 2)
+
+
+		self.pos_ent_mean_magnitude = tf.reduce_mean(tf.reduce_mean(tf.math.abs(e1_h[0:batch_size,]), 1)) # Mean of means of embeddings
+		self.pos_ent_min = tf.reduce_min(e1_h[0:batch_size,])
+		self.pos_ent_max = tf.reduce_max(e1_h[0:batch_size,])
+		self.pos_ent_sd = tf.reduce_mean(tf.math.reduce_std(e1_h[0:batch_size,], 1)) # mean of sds of embeddings
+
 		#Calculating loss to get what the framework will optimize
 		self.loss =  loss_func + config.lmbda * regul_func
 

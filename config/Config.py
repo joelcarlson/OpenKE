@@ -38,8 +38,6 @@ class Config(object):
 		self.out_path = None
 		self.bern = 0
 		self.hidden_size = 100
-		self.ent_size = self.hidden_size
-		self.rel_size = self.hidden_size
 		self.train_times = 0
 		self.margin = 1.0
 		self.nbatches = 100
@@ -196,14 +194,6 @@ class Config(object):
 
 	def set_dimension(self, dim):
 		self.hidden_size = dim
-		self.ent_size = dim
-		self.rel_size = dim
-
-	def set_ent_dimension(self, dim):
-		self.ent_size = dim
-
-	def set_rel_dimension(self, dim):
-		self.rel_size = dim
 
 	def set_train_times(self, times):
 		self.train_times = times
@@ -292,8 +282,26 @@ class Config(object):
 	def save_parameters(self, path = None):
 		if path == None:
 			path = self.out_path
+
+		embedding_dict = self.get_parameters("list")	
+		# OpenKE saves embeddings for ComplEx in a 4 key dict, we 
+		# want to conform to our own format, so we will reshape this dictionary before saving:
+		if "ent_re_embeddings" in embedding_dict.keys():
+			embedding_dict["ent_embeddings"] = [re+im for (re,im) in\
+			 zip(embedding_dict["ent_re_embeddings"], embedding_dict["ent_im_embeddings"])]
+			embedding_dict["rel_embeddings"] = [re+im for (re,im) in\
+			 zip(embedding_dict["rel_re_embeddings"], embedding_dict["rel_im_embeddings"])]			 
+
+			del embedding_dict['ent_re_embeddings']
+			del embedding_dict['ent_im_embeddings']			
+			del embedding_dict['rel_re_embeddings']
+			del embedding_dict['rel_im_embeddings']					
+
+
+		dir_name = os.path.dirname(path)	
+		os.makedirs(dir_name, exist_ok=True)	
 		f = open(path, "w")
-		f.write(json.dumps(self.get_parameters("list")))
+		f.write(json.dumps(embedding_dict))
 		f.close()
 
 	def set_parameters_by_name(self, var_name, tensor):
@@ -535,8 +543,9 @@ class Config(object):
 					# if self.exportName != None and (self.export_steps!=0 and times % self.export_steps == 0):
 					# 	self.save_tensorflow()
 					# print("times: {} , export_steps: {}, div: , out_path:{}".format(times, self.export_steps,  self.out_path))
-					if self.out_path != None and (self.export_steps!=0 and times % self.export_steps == 0):
-						self.save_parameters(self.out_path + "_{}".format(times))						
+					if times > 0:
+						if self.out_path != None and (self.export_steps!=0 and times % self.export_steps == 0):
+							self.save_parameters(self.out_path + "_{}".format(times))						
 					if self.early_stopping is not None:
 						if loss + min_delta < best_loss:
 							best_loss = loss
@@ -688,6 +697,14 @@ class Config(object):
 			raise Exception('Entity embedding file not found: {}'.format(embedding_path))
 
 		embedding_dict = json.loads(embs.read())	
+
+		# If the embeddings were produced by OpenKE, we will have to combine them
+		# if "ent_re_embeddings" in embedding_dict.keys():
+		# 	embedding_dict["ent_embeddings"] = [re+im for (re,im) in\
+		# 	 zip(embedding_dict["ent_re_embeddings"], embedding_dict["ent_im_embeddings"])]
+		# 	del embedding_dict['ent_re_embeddings']
+		# 	del embedding_dict['ent_im_embeddings']				
+
 		ent_embedding = embedding_dict["ent_embeddings"]
 		self.ent_embedding_length = len(ent_embedding)
 
@@ -719,7 +736,7 @@ class Config(object):
 		return ent_embedding
 
 	def set_rel_embedding_initializer(self, embedding_path):
-		
+		# TODO: Combine this and the set_ent_embedding_initializer, lots of duplicated code
 		try:
 			embs = open(embedding_path, 'r')
     	# Store configuration file values
@@ -727,6 +744,15 @@ class Config(object):
 			raise Exception('Relation embedding file not found: {}'.format(embedding_path))
 
 		embedding_dict = json.loads(embs.read())	
+
+		# If the embeddings were produced by OpenKE, we will have to combine them
+		# if "rel_re_embeddings" in embedding_dict.keys():			
+		# 	embedding_dict["rel_embeddings"] = [re+im for (re,im) in\
+		# 	 zip(embedding_dict["rel_re_embeddings"], embedding_dict["rel_im_embeddings"])]
+		
+		# 	del embedding_dict['rel_re_embeddings']
+		# 	del embedding_dict['rel_im_embeddings']		
+
 		rel_embedding = embedding_dict["rel_embeddings"]
 		self.rel_embedding_length = len(rel_embedding)
 
