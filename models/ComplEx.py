@@ -4,7 +4,10 @@ import tensorflow as tf
 from .Model import Model
 
 class ComplEx(Model):
-
+	"""
+	This ComplEx Model has not been modified in the same way as ComplEx freeze, and can therefore
+	not be considered an equivalent unfrozen model.
+	"""
 	def embedding_def(self):
 		config = self.get_config()
 		self.ent1_embeddings = tf.get_variable(name = "ent1_embeddings", shape = [config.entTotal, config.hidden_size], initializer = tf.contrib.layers.xavier_initializer(uniform = True))

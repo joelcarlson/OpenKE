@@ -102,9 +102,6 @@ class ComplEx_freeze(Model):
 		                                       logits=logits,
 		                                       reduction=tf.losses.Reduction.SUM)
 
-		# To convert from (-1, 1) coding we add 1, then divide by 2 to go to (0, 1) coding 
-		# y_cross_ent = tf.cast(tf.math.divide(tf.math.add(y, tf.constant(1, dtype=tf.float32)), tf.constant(2, dtype=tf.float32)), dtype=tf.int32)
-
 
 		logging.warning("Res dim: {}".format(res.shape))
 		# logging.warning("- y * res dim: {}".format((- y * res).shape))
@@ -112,23 +109,11 @@ class ComplEx_freeze(Model):
 		# l1.debug("y : {}".format(y))
 		# l1.debug("y2 : {}".format(y_cross_ent)) # Convert y to cross entropy range
 		l1.debug("------")
-
-		
-		# cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(labels=y_cross_ent,logits=res)	
-		
-		# loss_func = tf.reduce_mean(cross_entropy)
-		# self.ld_res = res
-		# self.ld_y = y
-		# # self.ld_y2 = y_cross_ent
-		# # self.ld_softplus = tf.nn.softplus(- y * res)
-		# self.ld_loss_func = loss_func
-
-
+	
 		# For freezing embeddings using a typical regularizer such as this is not particularly meaningful, as it is tabulating the 
 		# function for many vectors that we have no wish to change
 		regul_func = tf.reduce_mean(e1_h ** 2) + tf.reduce_mean(e1_t ** 2) + tf.reduce_mean(e2_h ** 2) + tf.reduce_mean(e2_t ** 2) + tf.reduce_mean(r1 ** 2) + tf.reduce_mean(r2 ** 2)
-
-		
+	
 		# I am imagining some future scenario where a part of the loss function is something that
 		# Penalizes distributional differences between positive and negative samples, since we can almost guarantee 
 		# that negative samples will be drawn from the (much larger) training set. For now, I just

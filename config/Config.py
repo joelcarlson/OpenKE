@@ -13,7 +13,7 @@ l1 = logging.getLogger('root')
 # l1.setLevel(logging.DEBUG)
 l1.setLevel(logging.WARNING)
 
-gv_log = logging.FileHandler('grad_vals.log')
+gv_log = logging.FileHandler('debug.log')
 gv_log.setLevel(logging.DEBUG)
 l1.addHandler(gv_log)
 
@@ -438,7 +438,7 @@ class Config(object):
 							self.ent1_mask = ent1_mask
 							self.ent1_grads_masked = ent1_grads_masked
 
-							logging.warning("ent1_var: {}".format(ent1_variable))
+							logging.debug("ent1_var: {}".format(ent1_variable))
 
 							self.train_op = self.optimizer.apply_gradients(grads_and_vars)	
 							self.ent1_variable_after = ent1_variable									
